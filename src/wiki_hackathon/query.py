@@ -9,7 +9,7 @@ The substantive self-improvement loop:
 from __future__ import annotations
 import time
 
-from . import cognee_io, gemini_io, redis_bus, wiki_io
+from . import answer_cache, cognee_io, gemini_io, redis_bus, wiki_io
 from .logs import get_logger, event
 from .prompts import CONTRADICTION_CHECK, CONCEPT_RENDER, SYNTH_ANSWER
 
@@ -104,6 +104,17 @@ def self_improve(slug: str, verdict: dict, source: str) -> bool:
 
 def ask(question: str) -> str:
     event(logger, "ask.start", question=question[:80])
+
+    # Semantic cache short-circuit. Any failure (Redis down, vectorizer error,
+    # missing API key, etc.) must NOT break the existing answer path.
+    try:
+        cached = answer_cache.lookup(question)
+        if cached:
+            event(logger, "ask.cache_hit", chars=len(cached))
+            return cached
+    except Exception as e:
+        logger.debug(f"answer_cache.lookup failed: {e}")
+
     kg = cognee_io.run(cognee_io.search_completion(question))
     concepts = wiki_io.list_concepts()[:8]
     wiki_snippets = {s: (wiki_io.read_concept(s) or "")[:1500] for s in concepts}
@@ -112,4 +123,10 @@ def ask(question: str) -> str:
         kg=kg, wiki=wiki_snippets, question=question,
     ))
     event(logger, "ask.done", chars=len(answer), concepts=len(concepts))
+
+    try:
+        answer_cache.store(question, answer)
+    except Exception as e:
+        logger.debug(f"answer_cache.store failed: {e}")
+
     return answer

@@ -1,0 +1,21 @@
+{
+  "ts": 1778966569.76643,
+  "cognee_vector_provider": "lancedb",
+  "cognee_vector_url": "/Users/nihalnihalani/Desktop/Github/wiki-hackathon/.venv/lib/python3.11/site-packages/cognee/.cognee_system/databases/cognee.lancedb",
+  "supported_providers_extra": [],
+  "builtin_providers": [
+    "lancedb",
+    "pgvector",
+    "chromadb",
+    "neptune_analytics"
+  ],
+  "redis_in_use_for": [
+    "streams (wiki:evolution)",
+    "json (wiki:concept:*)",
+    "pub/sub (wiki:events)",
+    "verdict cache (wiki:verdict:*)",
+    "answer semantic cache (RedisVL)",
+    "cognee session memory (session_id=...)"
+  ],
+  "cognee_version": "1.1.0"
+}

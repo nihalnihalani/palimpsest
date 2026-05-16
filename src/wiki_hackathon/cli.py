@@ -361,5 +361,158 @@ def chat(resume: str | None, list_sessions_flag: bool,
     chat_mod.start_chat(resume=resume)
 
 
+# ---- vector-smoke (DA-required: prove what vector backend actually loaded) -
+
+@cli.command("vector-smoke")
+def vector_smoke_cmd() -> None:
+    """Probe cognee's resolved vector backend; write docs/evidence/."""
+    from . import vector_probe
+    payload = vector_probe.probe()
+    p = vector_probe.write_evidence(payload)
+    click.secho(f"resolved vector provider: {payload['cognee_vector_provider']}",
+                bold=True, fg="cyan")
+    click.echo(f"cognee version:           {payload['cognee_version']}")
+    click.echo(f"vector url:               {payload['cognee_vector_url']}")
+    click.echo(f"redis in use for:")
+    for use in payload["redis_in_use_for"]:
+        click.echo(f"  - {use}")
+    click.secho(f"\nwrote {p}", fg="green")
+
+
+# ---- evidence (run eval N times for noise-resistant before/after) ----------
+
+@cli.command()
+@click.option("-n", "runs", default=5, type=int,
+              help="How many times to run eval. Default 5.")
+@click.option("--label", default="run", type=str,
+              help="Persist as docs/evidence/eval_<label>_runs.json.")
+def evidence(runs: int, label: str) -> None:
+    """Run the held-out eval N times, persist raw + median to docs/evidence/."""
+    import json as _json
+    from pathlib import Path
+    from . import eval as eval_mod
+
+    evidence_dir = Path(__file__).resolve().parents[2] / "docs" / "evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    out: list[dict] = []
+    for i in range(runs):
+        click.echo(f"run {i + 1}/{runs}…", nl=False)
+        r = eval_mod.run()
+        out.append(r)
+        click.echo(f" score={r['score']}/{r['max']}")
+    scores = sorted(r["score"] for r in out)
+    median = scores[len(scores) // 2]
+    raw_path = evidence_dir / f"eval_{label}_runs.json"
+    tmp = raw_path.with_suffix(raw_path.suffix + ".tmp")
+    tmp.write_text(_json.dumps(out, indent=2), encoding="utf-8")
+    tmp.replace(raw_path)
+
+    summary_path = evidence_dir / "eval_summary.json"
+    summary: dict = {}
+    if summary_path.exists():
+        try:
+            summary = _json.loads(summary_path.read_text(encoding="utf-8"))
+        except Exception:
+            summary = {}
+    summary[label] = {
+        "n": runs,
+        "median_score": median,
+        "max_score": out[0]["max"],
+        "all_scores": scores,
+        "missing_at_median": next(
+            (r["missing"] for r in out if r["score"] == median), []),
+    }
+    tmp = summary_path.with_suffix(summary_path.suffix + ".tmp")
+    tmp.write_text(_json.dumps(summary, indent=2), encoding="utf-8")
+    tmp.replace(summary_path)
+
+    click.secho(f"\nmedian score: {median}/{out[0]['max']}",
+                bold=True,
+                fg="green" if median == out[0]["max"] else "yellow")
+    click.echo(f"raw:     {raw_path}")
+    click.echo(f"summary: {summary_path}")
+
+
+# ---- improve (the hackathon-required SkillRunEntry propose-apply loop) ----
+
+@cli.command()
+@click.option("--remember", "do_remember", is_flag=True,
+              help="Ingest ./my_skills into cognee via remember(content_type='skills').")
+@click.option("--run", "run_skill_name", default=None,
+              help="Run the named skill against --prompt and print the answer.")
+@click.option("--prompt", "skill_prompt", default=None,
+              help="Prompt to pass when --run is used.")
+@click.option("--record", "record_skill_name", default=None,
+              help="Record a SkillRunEntry for this skill (propose a rewrite).")
+@click.option("--score", "record_score", type=float, default=None,
+              help="Score for --record (0..1).")
+@click.option("--task-text", "record_task_text", default="",
+              help="Free-text task description for --record.")
+@click.option("--apply", "apply_proposal_id", default=None,
+              help="Apply a previously-proposed rewrite by proposal id.")
+@click.option("--status", "show_status", is_flag=True,
+              help="Show last proposal + last run.")
+def improve(do_remember: bool, run_skill_name: str | None,
+            skill_prompt: str | None, record_skill_name: str | None,
+            record_score: float | None, record_task_text: str,
+            apply_proposal_id: str | None, show_status: bool) -> None:
+    """Self-improvement loop (cognee 1.x SkillRunEntry → improve_skill).
+
+    Examples:
+        wiki improve --remember
+        wiki improve --run code-review --prompt "Review the latest rewrite"
+        wiki improve --record code-review --score 0.3 --task-text "..."
+        wiki improve --apply <proposal_id>
+        wiki improve --status
+    """
+    from . import skill_loop  # lazy: pulls in cognee 1.x
+
+    if do_remember:
+        r = skill_loop.remember_skills()
+        click.secho(f"ingested skills → dataset {r.get('dataset_id', '?')[:36]}",
+                    fg="green")
+        return
+    if run_skill_name:
+        if not skill_prompt:
+            raise click.UsageError("--prompt is required with --run")
+        r = skill_loop.run_skill(run_skill_name, skill_prompt)
+        click.echo(r.get("answer", str(r)))
+        return
+    if record_skill_name is not None:
+        if record_score is None:
+            raise click.UsageError("--score is required with --record")
+        r = skill_loop.record_run(
+            record_skill_name,
+            task_text=record_task_text,
+            result_summary="(cli)",
+            success_score=record_score,
+            apply=False,
+        )
+        pid = r.get("proposal_id")
+        if pid:
+            click.secho(f"proposal {pid} ready. Apply with: "
+                        f"wiki improve --apply {pid}", fg="cyan")
+        else:
+            click.echo("(no proposal — score above threshold)")
+        return
+    if apply_proposal_id:
+        # apply_proposal needs the skill name — read it from status
+        st = skill_loop.status()
+        last = st.get("last_proposal") or {}
+        skill = last.get("skill_name")
+        if not skill:
+            raise click.UsageError(
+                "no last_proposal recorded; can't infer skill name")
+        skill_loop.apply_proposal(skill, apply_proposal_id)
+        click.secho(f"applied {apply_proposal_id} → {skill}", fg="green")
+        return
+    if show_status:
+        import json as _json
+        click.echo(_json.dumps(skill_loop.status(), indent=2, default=str))
+        return
+    raise click.UsageError(
+        "pick one: --remember | --run | --record | --apply | --status")
+
+
 if __name__ == "__main__":
     cli()
