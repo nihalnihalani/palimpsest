@@ -4,7 +4,7 @@ A self-correcting LLM wiki. A topic firehose streams in; the agent maintains a
 Karpathy-style markdown wiki and **rewrites pages plus writes a `:SUPERSEDES`
 edge in the Cognee knowledge graph** when contradictions arrive.
 
-Built for the AI-Memory Hackathon. Stack: **Cognee 0.5.8 · Redis Stack · Gemini 3 · Python 3.11**.
+Built for the AI-Memory Hackathon. Stack: **Cognee 1.1.0 · RedisVL 0.18.2 · Redis Stack · Gemini 3 · Python 3.11**.
 
 ## Demo
 

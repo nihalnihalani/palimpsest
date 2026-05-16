@@ -7,7 +7,6 @@ cognee what it actually loaded, and writes the answer to docs/evidence/.
 """
 from __future__ import annotations
 import json
-import time
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +25,6 @@ def probe() -> dict[str, Any]:
     )
     cfg = get_vectordb_config()
     out: dict[str, Any] = {
-        "ts": time.time(),
         "cognee_vector_provider": cfg.vector_db_provider,
         "cognee_vector_url": cfg.vector_db_url or "(unset)",
     }

@@ -29,7 +29,7 @@ from 0/3 → 3/3 after the new evidence is ingested, with citations.
 ### Ingest
 
 - **What goes in:** synthetic items `{title, body, source, url}` pushed to a
-  Redis Stream (`wiki:items`).
+  Redis Stream (`firehose:items`).
 - **How it is captured:** `cognee.add(text, dataset_name="wiki",
   node_set=[f"source:{source}"])` then `cognee.cognify()`. The
   `cognee.remember(..., session_id=...)` path is exercised by the skill
@@ -51,11 +51,12 @@ from 0/3 → 3/3 after the new evidence is ingested, with citations.
      Redis-cached) — when the new item contradicts an existing page, the
      page is rewritten and a `SUPERSEDES` edge is written into the Cognee
      graph itself.
-  2. Skill loop: `wiki improve --skill <name> --score <0..1>` records a
-     `SkillRunEntry` and (if score < threshold) proposes a `SKILL.md`
-     rewrite via `cognee.remember(SkillRunEntry, …, skill_improvement={
-     apply: False})`; `wiki improve --apply <proposal_id>` then commits
-     the rewrite.
+  2. Skill loop: `wiki improve --record <skill_name> --score <0..1>`
+     records a `SkillRunEntry` and (if score < threshold) proposes a
+     `SKILL.md` rewrite via `cognee.remember(SkillRunEntry, …,
+     skill_improvement={apply: False})`. `wiki improve --status` shows
+     the latest proposal id; `wiki improve --apply <proposal_id>` then
+     commits the rewrite.
 - **How feedback updates the wiki:** SUPERSEDES edges, page rewrites,
   Redis Stream `wiki:evolution` (audit), Redis Pub/Sub `wiki:events`,
   and now `SkillRunEntry` + `improve_skill(apply=True)` rewriting
@@ -119,7 +120,7 @@ After:
                            ▼
           ┌──────────────────────────────────────┐
           │  Redis — session memory               │   fast, ephemeral
-          │  • Streams (wiki:items, wiki:evolution)│   per-conversation
+          │  • Streams (firehose:items, wiki:evolution)│   per-conversation
           │  • RedisJSON (wiki:concept:<slug>)     │
           │  • Pub/Sub (wiki:events)               │
           │  • RedisVL SemanticCache (wiki:answer) │
@@ -144,7 +145,7 @@ After:
 ### Redis-as-session-memory
 
 - **What the agent writes into Redis:**
-  1. Raw incoming items as Stream entries (`wiki:items`).
+  1. Raw incoming items as Stream entries (`firehose:items`).
   2. Each rewrite to a concept page is mirrored to `wiki:concept:<slug>`
      (RedisJSON) and audit-logged to `wiki:evolution` (Stream) with a
      reason field. Dashboard subscribes to `wiki:events` (Pub/Sub) for

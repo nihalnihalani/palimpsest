@@ -140,11 +140,53 @@ cmd_test() {
     pytest -q tests/
 }
 
+cmd_vector_smoke() {
+    activate_venv
+    step "wiki vector-smoke (verify cognee's resolved vector backend)"
+    wiki vector-smoke
+}
+
+cmd_evidence() {
+    activate_venv
+    require_env_key
+    local label="${2:-baseline}"
+    local runs="${3:-5}"
+    step "wiki evidence --label $label --runs $runs"
+    wiki evidence --label "$label" --runs "$runs"
+}
+
+cmd_improve() {
+    activate_venv
+    require_env_key
+    step "skill self-improvement loop (cognee 1.x SkillRunEntry → improve_skill)"
+    info "1/4  remember ./my_skills into cognee"
+    wiki improve --remember
+    info "2/4  exercise the code-review skill"
+    wiki improve --run code-review --prompt "Review the latest concept rewrite for accuracy and citation integrity."
+    info "3/4  record a low score → propose a SKILL.md rewrite"
+    wiki improve --record code-review --score 0.3 --task-text "Reviewed agent-memory rewrite; missing citations."
+    info "4/4  current status"
+    wiki improve --status
+    info "to apply the proposal: ./run.sh improve-apply <proposal_id>"
+}
+
+cmd_improve_apply() {
+    activate_venv
+    require_env_key
+    if [ $# -lt 2 ]; then
+        fail "usage: ./run.sh improve-apply <proposal_id>"
+        exit 2
+    fi
+    step "wiki improve --apply $2"
+    wiki improve --apply "$2"
+}
+
 cmd_all() {
     cmd_setup
     require_env_key
     cmd_doctor || { fail "doctor failed — fix before continuing"; exit 1; }
     cmd_verify
+    cmd_vector_smoke
     cmd_seed
     cmd_demo
 }
@@ -155,28 +197,44 @@ wiki-hackathon orchestrator
 
 Usage: ./run.sh <subcommand>
 
-  setup    Idempotent: venv + pip install + Redis bringup (auto: cloud/brew/docker) + .env scaffold
-  doctor   Diagnostic dump (Redis health, Cognee graph stats, env, logs)
-  verify   Run scripts/verify_live.sh (9-step live smoke)
-  seed     wiki reset && wiki seed && wiki load-baseline
-  demo     Run demo/run_demo.sh (3-min stage flow)
-  rethink  wiki rethink (cognee.memify graph enrichment)
-  test     pytest -q tests/
-  all      setup → doctor → verify → seed → demo
-  help     This message
+  setup          Idempotent: venv + pip install + Redis bringup (auto: cloud/brew/docker) + .env scaffold
+  doctor         Diagnostic dump (Redis health, Cognee graph stats, env, logs)
+  verify         Run scripts/verify_live.sh (9-step live smoke) + wiki vector-smoke
+  seed           wiki reset && wiki seed && wiki load-baseline
+  demo           Run demo/run_demo.sh (3-min stage flow)
+  rethink        wiki rethink (cognee.memify graph enrichment)
+  vector-smoke   wiki vector-smoke (probe cognee's resolved vector backend, write docs/evidence/)
+  evidence       wiki evidence --label <baseline|improved> --runs <N>   (default: baseline, 5)
+  improve        Run the full skill self-improvement loop demo (remember → run → record → status)
+  improve-apply  ./run.sh improve-apply <proposal_id>  (commit a previously-proposed SKILL.md rewrite)
+  test           pytest -q tests/
+  all            setup → doctor → verify → vector-smoke → seed → demo
+  help           This message
+
+Examples:
+  ./run.sh setup                       # one-time
+  ./run.sh all                         # full pipeline
+  ./run.sh evidence baseline 5         # capture before-state eval
+  ./run.sh seed                        # ingest canned items
+  ./run.sh evidence improved 5         # capture after-state eval
+  ./run.sh improve                     # exercise the SkillRunEntry loop
 HELP
 }
 
 # --- main ---
 case "${1:-help}" in
-    setup)    cmd_setup ;;
-    doctor)   cmd_doctor ;;
-    verify)   cmd_verify ;;
-    seed)     cmd_seed ;;
-    demo)     cmd_demo ;;
-    rethink)  cmd_rethink ;;
-    test)     cmd_test ;;
-    all)      cmd_all ;;
+    setup)         cmd_setup ;;
+    doctor)        cmd_doctor ;;
+    verify)        cmd_verify ;;
+    seed)          cmd_seed ;;
+    demo)          cmd_demo ;;
+    rethink)       cmd_rethink ;;
+    vector-smoke)  cmd_vector_smoke ;;
+    evidence)      cmd_evidence "$@" ;;
+    improve)       cmd_improve ;;
+    improve-apply) cmd_improve_apply "$@" ;;
+    test)          cmd_test ;;
+    all)           cmd_all ;;
     help|""|"-h"|"--help") cmd_help ;;
     *) fail "unknown subcommand: $1"; cmd_help; exit 2 ;;
 esac

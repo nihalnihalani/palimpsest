@@ -132,6 +132,22 @@ else
     log_fail "Lint failed"
 fi
 
+section "10. Vector-smoke (cognee resolved provider)"
+VSMOKE_OUT=$(wiki vector-smoke 2>&1 | tail -10)
+if echo "$VSMOKE_OUT" | grep -qE "resolved vector provider: (lancedb|pgvector|chromadb|neptune_analytics|redis)"; then
+    log_pass "Vector-smoke wrote docs/evidence/vector_provider.json"
+else
+    log_fail "Vector-smoke produced no provider line"
+fi
+
+section "11. Skill loop status (cognee 1.x SkillRunEntry path)"
+STATUS_OUT=$(wiki improve --status 2>&1 | tail -10)
+if echo "$STATUS_OUT" | grep -q "ingested_skills"; then
+    log_pass "wiki improve --status reachable"
+else
+    log_fail "wiki improve --status failed"
+fi
+
 echo
 printf "\033[1mRESULT: %d passed, %d failed\033[0m\n" "$PASS" "$FAIL"
 if [ "$FAIL" -gt 0 ]; then
