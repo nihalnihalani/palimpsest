@@ -106,5 +106,36 @@ def lint() -> None:
     click.echo(p.read_text())
 
 
+# ---- seed / reset ------------------------------------------------------
+
+@cli.command()
+@click.option("--path", default=None,
+              help="JSONL file. Default: data/canned/seed_items.jsonl")
+def seed(path: str | None) -> None:
+    """Push the seed JSONL onto the stream and drain it."""
+    from pathlib import Path
+    from . import replay as replay_mod
+    from .config import CANNED_DIR
+    p = Path(path) if path else (CANNED_DIR / "seed_items.jsonl")
+    n = replay_mod.replay(p, pace_sec=0.05)
+    click.echo(f"pushed {n} items; draining...")
+    m = replay_mod.drain()
+    click.echo(f"processed {m} items")
+
+
+@cli.command()
+def reset() -> None:
+    """Wipe Redis + Cognee + wiki for a clean demo run."""
+    from . import redis_bus, cognee_io
+    from .config import CONCEPTS_DIR, LOG_FILE
+    redis_bus.reset_streams()
+    cognee_io.run(cognee_io.reset())
+    for p in CONCEPTS_DIR.glob("*.md"):
+        p.unlink()
+    if LOG_FILE.exists():
+        LOG_FILE.unlink()
+    click.echo("reset complete")
+
+
 if __name__ == "__main__":
     cli()
