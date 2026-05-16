@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# wiki-hackathon — live verification harness.
+# Run this AFTER docker compose up -d and after setting GEMINI_API_KEY in .env.
+# Exits non-zero on any failure so you know exactly where the wheels come off.
+set -uo pipefail
+cd "$(dirname "$0")/.."
+
+# shellcheck disable=SC1091
+source .venv/bin/activate
+
+PASS=0
+FAIL=0
+log_pass() { printf "  \033[32m✓\033[0m %s\n" "$1"; PASS=$((PASS+1)); }
+log_fail() { printf "  \033[31m✗\033[0m %s\n" "$1"; FAIL=$((FAIL+1)); }
+section() { printf "\n\033[1m== %s ==\033[0m\n" "$1"; }
+
+section "1. Redis reachable"
+if docker exec wiki-redis redis-cli PING 2>/dev/null | grep -q PONG; then
+    log_pass "Redis container PONG"
+else
+    log_fail "Redis container not responding — run: docker compose up -d"
+    exit 1
+fi
+
+section "2. .env loaded"
+if grep -q "^GEMINI_API_KEY=." .env 2>/dev/null; then
+    log_pass ".env has GEMINI_API_KEY"
+else
+    log_fail ".env missing or GEMINI_API_KEY empty — fill it in"
+    exit 1
+fi
+
+section "3. hello_redis"
+if python scripts/hello_redis.py 2>&1 | grep -q "JSON.GET ->"; then
+    log_pass "Redis streams + JSON roundtrip"
+else
+    log_fail "hello_redis failed"
+fi
+
+section "4. hello_gemini"
+GEMINI_OUT=$(python scripts/hello_gemini.py 2>&1 | tail -1)
+if echo "$GEMINI_OUT" | grep -qi "hello"; then
+    log_pass "Gemini 3 reachable: ${GEMINI_OUT}"
+else
+    log_fail "hello_gemini failed: ${GEMINI_OUT}"
+fi
+
+section "5. hello_cognee (~30-60s)"
+if python scripts/hello_cognee.py 2>&1 | grep -q "GRAPH_COMPLETION"; then
+    log_pass "Cognee add → cognify → search works"
+else
+    log_fail "hello_cognee failed — check LLM_* env vars in .env"
+fi
+
+section "6. Reset + seed (~60-120s)"
+wiki reset 2>&1 | tail -1
+SEED_OUT=$(wiki seed 2>&1 | tail -2)
+echo "$SEED_OUT"
+N_CONCEPTS=$(ls wiki/concepts/*.md 2>/dev/null | wc -l | tr -d ' ')
+if [ "$N_CONCEPTS" -ge 3 ]; then
+    log_pass "Seeded ${N_CONCEPTS} concept pages"
+    echo "Concept pages:"
+    ls wiki/concepts/ | sed 's/^/    /'
+else
+    log_fail "Only ${N_CONCEPTS} concept pages — extract_concepts fallback may be misfiring"
+fi
+
+section "7. Hero moment (canned contradiction)"
+wiki inject-canned contradiction_1 2>&1 | tail -1
+wiki ingest --once 2>&1 | tail -3
+SUPERSEDES_OUT=$(wiki graph supersedes 2>&1)
+echo "$SUPERSEDES_OUT"
+if echo "$SUPERSEDES_OUT" | grep -qE "source=|src="; then
+    log_pass "SUPERSEDES edge written + readable"
+elif echo "$SUPERSEDES_OUT" | grep -q "no SUPERSEDES"; then
+    log_fail "No SUPERSEDES edge — check query.self_improve and cognee_io.list_supersedes"
+else
+    log_fail "Unexpected supersedes output"
+fi
+
+section "8. Eval (held-out 0/3 → 3/3)"
+EVAL_OUT=$(wiki eval 2>&1)
+echo "$EVAL_OUT"
+SCORE=$(echo "$EVAL_OUT" | grep -oE "Score: [0-9]/3" | head -1 || echo "")
+if echo "$SCORE" | grep -qE "[23]/3"; then
+    log_pass "Eval ${SCORE}"
+else
+    log_fail "Eval too low: ${SCORE:-no score}"
+fi
+
+section "9. Lint report"
+LINT_OUT=$(wiki lint 2>&1 | head -3)
+echo "$LINT_OUT"
+if echo "$LINT_OUT" | grep -q "wrote"; then
+    log_pass "Lint report written"
+else
+    log_fail "Lint failed"
+fi
+
+echo
+printf "\033[1mRESULT: %d passed, %d failed\033[0m\n" "$PASS" "$FAIL"
+if [ "$FAIL" -gt 0 ]; then
+    echo "Demo NOT ready. Fix failures above before rehearsing."
+    exit 1
+fi
+echo "Demo READY. Snapshot the state now:"
+echo "  tar czf snapshot/demo-baked.tar.gz wiki/ .cognee_system/ .data_storage/ 2>/dev/null || tar czf snapshot/demo-baked.tar.gz wiki/"
