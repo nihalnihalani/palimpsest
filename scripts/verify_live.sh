@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Palimpsest — live verification harness.
+# Palimpsest -- live verification harness.
 # Run this AFTER docker compose up -d and after setting GEMINI_API_KEY in .env.
 # Exits non-zero on any failure so you know exactly where the wheels come off.
 set -uo pipefail
@@ -61,7 +61,7 @@ section "2. .env loaded"
 if grep -q "^GEMINI_API_KEY=." .env 2>/dev/null; then
     log_pass ".env has GEMINI_API_KEY"
 else
-    log_fail ".env missing or GEMINI_API_KEY empty — fill it in"
+    log_fail ".env missing or GEMINI_API_KEY empty -- fill it in"
     exit 1
 fi
 
@@ -82,9 +82,9 @@ fi
 
 section "5. hello_cognee (~30-60s)"
 if python scripts/hello_cognee.py 2>&1 | grep -q "GRAPH_COMPLETION"; then
-    log_pass "Cognee add → cognify → search works"
+    log_pass "Cognee add -> cognify -> search works"
 else
-    log_fail "hello_cognee failed — check LLM_* env vars in .env"
+    log_fail "hello_cognee failed -- check LLM_* env vars in .env"
 fi
 
 section "6. Reset + seed (~60-120s)"
@@ -97,7 +97,7 @@ if [ "$N_CONCEPTS" -ge 3 ]; then
     echo "Concept pages:"
     ls wiki/concepts/ | sed 's/^/    /'
 else
-    log_fail "Only ${N_CONCEPTS} concept pages — extract_concepts fallback may be misfiring"
+    log_fail "Only ${N_CONCEPTS} concept pages -- extract_concepts fallback may be misfiring"
 fi
 
 section "7. Hero moment (canned contradiction)"
@@ -108,12 +108,12 @@ echo "$SUPERSEDES_OUT"
 if echo "$SUPERSEDES_OUT" | grep -qE "source=|src="; then
     log_pass "SUPERSEDES edge written + readable"
 elif echo "$SUPERSEDES_OUT" | grep -q "no SUPERSEDES"; then
-    log_fail "No SUPERSEDES edge — check query.self_improve and cognee_io.list_supersedes"
+    log_fail "No SUPERSEDES edge -- check query.self_improve and cognee_io.list_supersedes"
 else
     log_fail "Unexpected supersedes output"
 fi
 
-section "8. Eval (held-out 0/3 → 3/3)"
+section "8. Eval (held-out 0/3 -> 3/3)"
 EVAL_OUT=$(wiki eval 2>&1)
 echo "$EVAL_OUT"
 SCORE=$(echo "$EVAL_OUT" | grep -oE "Score: [0-9]/3" | head -1 || echo "")

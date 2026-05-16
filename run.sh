@@ -20,7 +20,7 @@ step() { printf "\n%s%s== %s ==%s\n" "$C_BOLD" "$C_CYAN" "$*" "$C_RESET"; }
 require_cmd() { command -v "$1" >/dev/null || { fail "missing command: $1"; exit 1; }; }
 have_venv()   { [ -f .venv/bin/activate ]; }
 activate_venv() {
-    if ! have_venv; then fail ".venv not found — run: ./run.sh setup"; exit 1; fi
+    if ! have_venv; then fail ".venv not found -- run: ./run.sh setup"; exit 1; fi
     set +u
     # shellcheck disable=SC1091
     source .venv/bin/activate
@@ -29,7 +29,7 @@ activate_venv() {
 require_env_key() {
     if ! [ -f .env ]; then fail "missing .env (run: ./run.sh setup)"; exit 1; fi
     if ! grep -q '^GEMINI_API_KEY=..*' .env; then
-        fail "GEMINI_API_KEY is empty in .env — edit it and re-run"
+        fail "GEMINI_API_KEY is empty in .env -- edit it and re-run"
         exit 1
     fi
 }
@@ -46,7 +46,7 @@ cmd_setup() {
         redis_url=$(grep -E "^REDIS_URL=" .env | head -1 | cut -d= -f2-)
     fi
     if echo "$redis_url" | grep -qE "@.+\.(com|net|io|cloud)"; then
-        ok "REDIS_URL points to remote/cloud — skipping local Redis bringup"
+        ok "REDIS_URL points to remote/cloud -- skipping local Redis bringup"
     elif command -v redis-stack-server >/dev/null; then
         if pgrep -f "redis-stack-server" >/dev/null; then
             ok "redis-stack-server already running (brew)"
@@ -115,7 +115,7 @@ cmd_seed() {
     ok "wiki populated"
     step "post-seed doctor"
     if ! wiki doctor; then
-        fail "doctor reported failures after seed — fix before demo"
+        fail "doctor reported failures after seed -- fix before demo"
         return 1
     fi
 }
@@ -158,12 +158,12 @@ cmd_evidence() {
 cmd_improve() {
     activate_venv
     require_env_key
-    step "skill self-improvement loop (cognee 1.x SkillRunEntry → improve_skill)"
+    step "skill self-improvement loop (cognee 1.x SkillRunEntry -> improve_skill)"
     info "1/4  remember ./my_skills into cognee"
     wiki improve --remember
     info "2/4  exercise the code-review skill"
     wiki improve --run code-review --prompt "Review the latest concept rewrite for accuracy and citation integrity."
-    info "3/4  record a low score → propose a SKILL.md rewrite"
+    info "3/4  record a low score -> propose a SKILL.md rewrite"
     wiki improve --record code-review --score 0.3 --task-text "Reviewed agent-memory rewrite; missing citations."
     info "4/4  current status"
     wiki improve --status
@@ -184,7 +184,7 @@ cmd_improve_apply() {
 cmd_all() {
     cmd_setup
     require_env_key
-    cmd_doctor || { fail "doctor failed — fix before continuing"; exit 1; }
+    cmd_doctor || { fail "doctor failed -- fix before continuing"; exit 1; }
     cmd_verify
     cmd_vector_smoke
     cmd_seed
@@ -205,10 +205,10 @@ Usage: ./run.sh <subcommand>
   rethink        wiki rethink (cognee.memify graph enrichment)
   vector-smoke   wiki vector-smoke (probe cognee's resolved vector backend, write docs/evidence/)
   evidence       wiki evidence --label <baseline|improved> --runs <N>   (default: baseline, 5)
-  improve        Run the full skill self-improvement loop demo (remember → run → record → status)
+  improve        Run the full skill self-improvement loop demo (remember -> run -> record -> status)
   improve-apply  ./run.sh improve-apply <proposal_id>  (commit a previously-proposed SKILL.md rewrite)
   test           pytest -q tests/
-  all            setup → doctor → verify → vector-smoke → seed → demo
+  all            setup -> doctor -> verify -> vector-smoke -> seed -> demo
   help           This message
 
 Examples:

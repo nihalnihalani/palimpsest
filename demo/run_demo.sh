@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Palimpsest — the exact command sequence for stage.
+# Palimpsest -- the exact command sequence for stage.
 # Run interactively; press Enter between steps as you narrate.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -37,7 +37,7 @@ step() {
 # ---- 3-minute stage flow ----
 
 step 'wiki inject-canned contradiction_1'   # the HERO injection
-step 'wiki ingest --once'                   # process — page rewrites live in Obsidian
+step 'wiki ingest --once'                   # process -- page rewrites live in Obsidian
 step 'wiki graph supersedes'                # show the new :SUPERSEDES edge w/ provenance
 step 'wiki ask "what is the current view on agent memory?"'
 step 'wiki eval'                            # held-out 0/3 -> 3/3 metric

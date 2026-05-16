@@ -1,4 +1,4 @@
-"""wiki — single Click entrypoint."""
+"""wiki -- single Click entrypoint."""
 from __future__ import annotations
 import json
 import time
@@ -8,7 +8,7 @@ import click
 
 @click.group()
 def cli() -> None:
-    """wiki — self-correcting LLM wiki (hackathon)"""
+    """wiki -- self-correcting LLM wiki (hackathon)"""
 
 
 # ---- producers ----------------------------------------------------------
@@ -27,7 +27,7 @@ def inject(title: str, body: str, source: str, url: str) -> None:
         "url": url, "ts": str(time.time()),
     }
     mid = redis_bus.push_item(item)
-    click.echo(f"queued {item['id']} → stream {mid}")
+    click.echo(f"queued {item['id']} -> stream {mid}")
 
 
 @cli.command("inject-canned")
@@ -39,7 +39,7 @@ def inject_canned(name: str) -> None:
     p = CANNED_DIR / f"{name}.json"
     item = json.loads(p.read_text())
     mid = redis_bus.push_item(item)
-    click.echo(f"queued {item['id']} → stream {mid}")
+    click.echo(f"queued {item['id']} -> stream {mid}")
 
 
 # ---- workers ------------------------------------------------------------
@@ -91,7 +91,7 @@ def ask(question: str, as_of: str | None, save: bool, name: str | None) -> None:
         p = wiki_io.write_exploration(question, answer,
                                       name=name, citations=citations,
                                       as_of=as_of_label)
-        click.secho(f"\nsaved → {p}", fg="green")
+        click.secho(f"\nsaved -> {p}", fg="green")
 
 
 @cli.group()
@@ -109,7 +109,7 @@ def graph_supersedes() -> None:
         return
     for r in rows:
         click.echo(
-            f"{r.get('from','?')[:32]} → {r.get('to','?')[:32]}  "
+            f"{r.get('from','?')[:32]} -> {r.get('to','?')[:32]}  "
             f"src={r.get('source','')}  reason={r.get('reason','')[:60]}"
         )
 
@@ -291,7 +291,7 @@ def status() -> None:
     stats_t.add_row("lint reports", str(len(reports)))
     stats_t.add_row("explorations", str(len(explorations)))
 
-    # Cognee graph stats (defensively — may fail if Cognee isn't reachable)
+    # Cognee graph stats (defensively -- may fail if Cognee isn't reachable)
     try:
         gs = cognee_io.run(cognee_io.graph_stats())
         sups = cognee_io.run(cognee_io.list_supersedes())
@@ -470,7 +470,7 @@ def improve(do_remember: bool, run_skill_name: str | None,
             skill_prompt: str | None, record_skill_name: str | None,
             record_score: float | None, record_task_text: str,
             apply_proposal_id: str | None, show_status: bool) -> None:
-    """Self-improvement loop (cognee 1.x SkillRunEntry → improve_skill).
+    """Self-improvement loop (cognee 1.x SkillRunEntry -> improve_skill).
 
     Examples:
         wiki improve --remember
@@ -483,7 +483,7 @@ def improve(do_remember: bool, run_skill_name: str | None,
 
     if do_remember:
         r = skill_loop.remember_skills()
-        click.secho(f"ingested skills → dataset {r.get('dataset_id', '?')[:36]}",
+        click.secho(f"ingested skills -> dataset {r.get('dataset_id', '?')[:36]}",
                     fg="green")
         return
     if run_skill_name:
@@ -507,10 +507,10 @@ def improve(do_remember: bool, run_skill_name: str | None,
             click.secho(f"proposal {pid} ready. Apply with: "
                         f"wiki improve --apply {pid}", fg="cyan")
         else:
-            click.echo("(no proposal — score above threshold)")
+            click.echo("(no proposal -- score above threshold)")
         return
     if apply_proposal_id:
-        # apply_proposal needs the skill name — read it from status
+        # apply_proposal needs the skill name -- read it from status
         st = skill_loop.status()
         last = st.get("last_proposal") or {}
         skill = last.get("skill_name")
@@ -518,7 +518,7 @@ def improve(do_remember: bool, run_skill_name: str | None,
             raise click.UsageError(
                 "no last_proposal recorded; can't infer skill name")
         skill_loop.apply_proposal(skill, apply_proposal_id)
-        click.secho(f"applied {apply_proposal_id} → {skill}", fg="green")
+        click.secho(f"applied {apply_proposal_id} -> {skill}", fg="green")
         return
     if show_status:
         import json as _json
