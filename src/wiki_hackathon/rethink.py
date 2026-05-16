@@ -38,6 +38,12 @@ logger = get_logger(__name__)
 TOP_N_ENTITIES = 8
 NEIGHBORHOOD_DISPLAY_LIMIT = 20
 
+# Module-level buffer used by the memify path. memify doesn't surface task
+# return values, so the enrichment task pushes its writes here and the outer
+# memify driver reads from it.
+_MEMIFY_WRITES: list[dict] = []
+_MEMIFY_CONTRADICTIONS: list[dict] = []
+
 
 # ---------------------------------------------------------------------------
 # Helpers shared by both paths
@@ -185,7 +191,11 @@ async def _extract_suspect_neighborhoods(*_args, **_kwargs) -> list[dict]:
 
 async def _resolve_with_gemini(payload: list[dict] | None = None,
                                *_args, **_kwargs) -> list[dict]:
-    """memify ENRICHMENT task: ask Gemini per-entity and write INFERRED edges."""
+    """memify ENRICHMENT task: ask Gemini per-entity and write INFERRED edges.
+
+    Writes also go to _MEMIFY_WRITES so the outer driver can count them
+    (memify doesn't surface task return values to the caller).
+    """
     items = payload or []
     writes: list[dict] = []
     for item in items:
@@ -209,14 +219,20 @@ async def _resolve_with_gemini(payload: list[dict] | None = None,
                 dst = nid
             try:
                 await cognee_io.write_inferred_edge(src, dst, rel, reason)
-                writes.append({"src": src, "dst": dst, "rel": rel,
-                               "reason": reason, "label": label})
+                row = {"src": src, "dst": dst, "rel": rel,
+                       "reason": reason, "label": label}
+                writes.append(row)
+                _MEMIFY_WRITES.append(row)
+                event(logger, "rethink.inferred_edge", src=src[:24],
+                      dst=dst[:24], rel=rel, reason=reason[:40])
             except Exception:  # noqa: BLE001
                 continue
         for c in result.get("contradictions") or []:
             if isinstance(c, dict):
-                writes.append({"contradiction": c.get("explanation", ""),
-                               "label": label})
+                row = {"contradiction": c.get("explanation", ""),
+                       "label": label}
+                writes.append(row)
+                _MEMIFY_CONTRADICTIONS.append(row)
     return writes
 
 
@@ -224,6 +240,10 @@ async def _memify_rethink() -> dict:
     """Run the formal cognee.memify pipeline. Falls through to manual on error."""
     import cognee
     from cognee.modules.pipelines.tasks.task import Task
+
+    # Reset the shared buffer so we count this invocation only.
+    _MEMIFY_WRITES.clear()
+    _MEMIFY_CONTRADICTIONS.clear()
 
     try:
         await cognee.memify(
@@ -237,27 +257,23 @@ async def _memify_rethink() -> dict:
         result["path"] = "manual-fallback-from-memify"
         return result
 
-    # memify doesn't surface task return values directly. We re-walk the
-    # graph just to count what landed so the CLI has something useful to
-    # print. This is cheap because we already have list_entities.
-    top = await _gather_top_entities()
-    inferred = 0
-    contradictions = 0
+    # The enrichment task pushes to _MEMIFY_WRITES while it runs; read them now.
     details: list[str] = []
-    for nid, props, nbh in top:
-        for other, rel, _direction in nbh:
-            if rel == "INFERRED" or rel == "RELATED_TO":
-                # Heuristic: count anything written by rethink. The provenance
-                # property `source=rethink` would be authoritative but tuple
-                # shape varies between graph backends.
-                pass
+    for row in _MEMIFY_WRITES[:10]:
         details.append(
-            f"{_entity_label(nid, props)}: {len(nbh)} neighbors"
+            f"{row['label']}: {row['src'][:24]} -[{row['rel']}]-> "
+            f"{row['dst'][:24]} ({row['reason'][:60]})"
         )
+    for row in _MEMIFY_CONTRADICTIONS[:5]:
+        details.append(
+            f"{row['label']}: contradiction — {row['contradiction'][:80]}"
+        )
+
+    top = await _gather_top_entities()
     return {
         "entities_inspected": len(top),
-        "contradictions_found": contradictions,
-        "inferred_edges": inferred,
+        "contradictions_found": len(_MEMIFY_CONTRADICTIONS),
+        "inferred_edges": len(_MEMIFY_WRITES),
         "details": details,
         "path": "memify",
     }

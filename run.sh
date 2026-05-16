@@ -95,7 +95,11 @@ cmd_seed() {
     wiki seed
     wiki load-baseline
     ok "wiki populated"
-    wiki doctor || true   # informational, never fail the seed step
+    step "post-seed doctor"
+    if ! wiki doctor; then
+        fail "doctor reported failures after seed — fix before demo"
+        return 1
+    fi
 }
 
 cmd_demo() {

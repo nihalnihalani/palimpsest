@@ -28,9 +28,13 @@ def _parse_as_of(ref: str) -> float:
     if ref in ("pre-ingest", "before-contradictions", "0"):
         return 0.0
     if ref == "first-rewrite":
-        # Look up earliest entry in EVOLUTION_STREAM whose reason isn't 'ingest'
-        c = redis_bus.client()
-        entries = c.xrange(EVOLUTION_STREAM, min="-", max="+", count=200)
+        # Look up earliest entry in EVOLUTION_STREAM whose reason isn't 'ingest'.
+        # If Redis is unreachable, fall back to "now" rather than crashing.
+        try:
+            c = redis_bus.client()
+            entries = c.xrange(EVOLUTION_STREAM, min="-", max="+", count=200)
+        except Exception:
+            return now
         for _mid, fields in entries:
             reason = fields.get("reason", "")
             if reason and reason != "ingest":

@@ -94,6 +94,16 @@ def run() -> int:
                 f"  SUPERSEDES: src={s.get('source','')} "
                 f"reason={s.get('reason','')[:60]}"
             )
+        # Empty-graph guard: if anyone ran seed, the graph should be non-empty.
+        # On stage, a silent empty graph is indistinguishable from a healthy one
+        # without this check — and it's a demo-killer.
+        page_count = len(list(CONCEPTS_DIR.glob("*.md")))
+        if stats["nodes"] == 0 and page_count > 0:
+            _fail(
+                f"graph is EMPTY but wiki/concepts/ has {page_count} pages — "
+                f"Cognee data was likely wiped without re-seeding"
+            )
+            failures += 1
     except Exception as e:
         _fail(f"Cognee unreachable: {type(e).__name__}: {e}")
         failures += 1
