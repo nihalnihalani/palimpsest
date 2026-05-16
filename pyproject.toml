@@ -3,7 +3,8 @@ name = "wiki-hackathon"
 version = "0.1.0"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-  "cognee>=0.5.2",
+  "cognee==0.5.8",
+  "mistralai<2",
   "redis[hiredis]>=5.0",
   "google-generativeai>=0.8",
   "click>=8.1",

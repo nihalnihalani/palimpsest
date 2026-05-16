@@ -11,7 +11,7 @@ from cognee.infrastructure.databases.graph import get_graph_engine
 
 async def main() -> None:
     await cognee.prune.prune_data()
-    await cognee.prune.prune_system(metadata=True)
+    await cognee.prune.prune_system(graph=True, vector=True, metadata=True, cache=True)
 
     await cognee.add(
         "GPT-5 was announced on Jan 15, 2026 by OpenAI.",
@@ -28,15 +28,15 @@ async def main() -> None:
     print("\n=== GRAPH_COMPLETION ===")
     print(await cognee.search(
         query_text="When was GPT-5 announced?",
-        search_type=SearchType.GRAPH_COMPLETION,
-        dataset_names=["hello"],
+        query_type=SearchType.GRAPH_COMPLETION,
+        datasets=["hello"],
     ))
 
-    print("\n=== INSIGHTS (triplets) ===")
+    print("\n=== TRIPLET_COMPLETION ===")
     print(await cognee.search(
         query_text="GPT-5 announcement",
-        search_type=SearchType.INSIGHTS,
-        dataset_names=["hello"],
+        query_type=SearchType.TRIPLET_COMPLETION,
+        datasets=["hello"],
     ))
 
     graph = await get_graph_engine()

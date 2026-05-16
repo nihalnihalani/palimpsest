@@ -29,19 +29,24 @@ async def cognify() -> None:
 
 
 async def search_completion(query: str) -> str:
+    # Cognee 0.5.8: search uses query_type= and datasets= (renamed from
+    # search_type= / dataset_names= in earlier versions).
     resp = await cognee.search(
         query_text=query,
-        search_type=SearchType.GRAPH_COMPLETION,
-        dataset_names=[DATASET],
+        query_type=SearchType.GRAPH_COMPLETION,
+        datasets=[DATASET],
     )
     return str(resp)
 
 
 async def search_insights(query: str) -> list[Any]:
+    # 0.5.8 does not expose SearchType.INSIGHTS; TRIPLET_COMPLETION returns
+    # an LLM answer composed from graph triplets, which is what we want for
+    # extracting top concepts.
     return await cognee.search(
         query_text=query,
-        search_type=SearchType.INSIGHTS,
-        dataset_names=[DATASET],
+        query_type=SearchType.TRIPLET_COMPLETION,
+        datasets=[DATASET],
     )
 
 
@@ -80,11 +85,25 @@ async def write_supersedes_edge(old_claim: str, new_claim: str,
 
 
 async def list_supersedes() -> list[dict]:
-    """For the on-stage `wiki graph supersedes` command."""
+    """For the on-stage `wiki graph supersedes` command.
+
+    Cognee's get_graph_data edge tuple shape varies by version; handle both
+    4-tuple (src, dst, rel, props) and 3-tuple (src, dst, props_with_rel).
+    """
     graph = await get_graph_engine()
     _, edges = await graph.get_graph_data()
     out: list[dict] = []
-    for src, dst, rel, props in edges or []:
+    for edge in edges or []:
+        if isinstance(edge, (list, tuple)):
+            if len(edge) == 4:
+                src, dst, rel, props = edge
+            elif len(edge) == 3:
+                src, dst, props = edge
+                rel = (props or {}).get("relationship_name", "")
+            else:
+                continue
+        else:
+            continue
         if rel == "SUPERSEDES":
             out.append({"from": src, "to": dst, **(props or {})})
     return out
@@ -97,8 +116,9 @@ async def graph_stats() -> dict:
 
 
 async def reset() -> None:
+    # 0.5.8 prune_system signature: (graph=True, vector=True, metadata=False, cache=True)
     await cognee.prune.prune_data()
-    await cognee.prune.prune_system(metadata=True)
+    await cognee.prune.prune_system(graph=True, vector=True, metadata=True, cache=True)
 
 
 def run(coro):
