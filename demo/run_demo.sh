@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wiki-hackathon — the exact command sequence for stage.
+# Palimpsest — the exact command sequence for stage.
 # Run interactively; press Enter between steps as you narrate.
 set -euo pipefail
 cd "$(dirname "$0")/.."

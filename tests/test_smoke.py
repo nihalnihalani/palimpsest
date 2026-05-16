@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 import redis as redis_lib
 
-from wiki_hackathon import redis_bus, wiki_io, lint
+from palimpsest import redis_bus, wiki_io, lint
 
 
 def _redis_available() -> bool:
@@ -46,7 +46,7 @@ def test_audit_and_publish() -> None:
 
 
 def test_wiki_io_roundtrip(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr("wiki_hackathon.wiki_io.CONCEPTS_DIR", tmp_path)
+    monkeypatch.setattr("palimpsest.wiki_io.CONCEPTS_DIR", tmp_path)
     wiki_io.write_concept("foo", "Foo", "Body of [[bar]]", ["src1"])
     assert (tmp_path / "foo.md").exists()
     assert "[[bar]]" in (tmp_path / "foo.md").read_text()
@@ -59,8 +59,8 @@ def test_rethink_offline(monkeypatch) -> None:
     Forces the manual path (no memify) so we exercise the deterministic
     fallback that ships with the CLI.
     """
-    from wiki_hackathon import rethink as rethink_mod
-    from wiki_hackathon import cognee_io, gemini_io
+    from palimpsest import rethink as rethink_mod
+    from palimpsest import cognee_io, gemini_io
 
     # Fake graph: 2 entities, each with a non-empty neighborhood
     fake_entities = [
@@ -163,7 +163,7 @@ class _FakeRedis:
 
 
 def test_timemachine_snapshot(monkeypatch) -> None:
-    from wiki_hackathon import timemachine, redis_bus
+    from palimpsest import timemachine, redis_bus
 
     fake = _FakeRedis({
         "wiki:concept:foo": {
@@ -190,7 +190,7 @@ def test_timemachine_snapshot(monkeypatch) -> None:
 
 def test_timemachine_parse_as_of() -> None:
     import time as _time
-    from wiki_hackathon import timemachine
+    from palimpsest import timemachine
 
     now = _time.time()
     # 'now' / empty → ~now
@@ -209,7 +209,7 @@ def test_timemachine_parse_as_of() -> None:
 
 
 def test_write_exploration(tmp_path, monkeypatch) -> None:
-    from wiki_hackathon import wiki_io, config
+    from palimpsest import wiki_io, config
     monkeypatch.setattr(config, "EXPLORATIONS_DIR", tmp_path)
     p = wiki_io.write_exploration(
         "What is X?", "X is [[foo]] and [[bar]].",
@@ -222,7 +222,7 @@ def test_write_exploration(tmp_path, monkeypatch) -> None:
 
 
 def test_find_citations(monkeypatch) -> None:
-    from wiki_hackathon import wiki_io
+    from palimpsest import wiki_io
     answer = "See [[Agent Memory]] and [[context-window]] also [[foo|bar]]."
     cits = wiki_io.find_citations_in_text(answer)
     assert "agent-memory" in cits
@@ -236,16 +236,16 @@ def test_lint_report_minimal(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(lint, "kg_stats", lambda: {"nodes": 0, "edges": 0})
     monkeypatch.setattr(lint, "CONCEPTS_DIR", tmp_path)
     monkeypatch.setattr(lint, "REPORTS_DIR", tmp_path)
-    monkeypatch.setattr("wiki_hackathon.wiki_io.CONCEPTS_DIR", tmp_path)
+    monkeypatch.setattr("palimpsest.wiki_io.CONCEPTS_DIR", tmp_path)
     (tmp_path / "a.md").write_text("[[b]]")
     p = lint.write_report()
     assert "broken wikilinks" in p.read_text()
 
 
 def test_fix_broken_wikilinks(tmp_path, monkeypatch) -> None:
-    from wiki_hackathon import lint, wiki_io
+    from palimpsest import lint, wiki_io
     monkeypatch.setattr(lint, "CONCEPTS_DIR", tmp_path)
-    monkeypatch.setattr("wiki_hackathon.wiki_io.CONCEPTS_DIR", tmp_path)
+    monkeypatch.setattr("palimpsest.wiki_io.CONCEPTS_DIR", tmp_path)
     # set up: agent-memory.md exists, two other pages reference it differently
     (tmp_path / "agent-memory.md").write_text("Agent memory page")
     (tmp_path / "foo.md").write_text("links to [[Agent_Memory]]")    # case+underscore mismatch
@@ -261,7 +261,7 @@ def test_fix_broken_wikilinks(tmp_path, monkeypatch) -> None:
 
 
 def test_chat_session_roundtrip(tmp_path, monkeypatch) -> None:
-    from wiki_hackathon import chat_session
+    from palimpsest import chat_session
     monkeypatch.setattr(chat_session, "CHATS_DIR", tmp_path)
     s = chat_session.ChatSession.new(title="hello")
     s.append("user", "first question")
@@ -275,7 +275,7 @@ def test_chat_session_roundtrip(tmp_path, monkeypatch) -> None:
 
 
 def test_chat_session_listing(tmp_path, monkeypatch) -> None:
-    from wiki_hackathon import chat_session
+    from palimpsest import chat_session
     import time
     monkeypatch.setattr(chat_session, "CHATS_DIR", tmp_path)
     s1 = chat_session.ChatSession.new("first")
@@ -290,7 +290,7 @@ def test_chat_session_listing(tmp_path, monkeypatch) -> None:
 
 
 def test_chat_session_prefix_resolve(tmp_path, monkeypatch) -> None:
-    from wiki_hackathon import chat_session
+    from palimpsest import chat_session
     monkeypatch.setattr(chat_session, "CHATS_DIR", tmp_path)
     s = chat_session.ChatSession.new("p")
     s.save()
@@ -299,7 +299,7 @@ def test_chat_session_prefix_resolve(tmp_path, monkeypatch) -> None:
 
 
 def test_chat_transcript_md(tmp_path, monkeypatch) -> None:
-    from wiki_hackathon import chat_session
+    from palimpsest import chat_session
     monkeypatch.setattr(chat_session, "CHATS_DIR", tmp_path)
     s = chat_session.ChatSession.new("titled")
     s.append("user", "hello?")
@@ -312,12 +312,12 @@ def test_chat_transcript_md(tmp_path, monkeypatch) -> None:
 
 
 def test_lint_report_with_fix_section(tmp_path, monkeypatch) -> None:
-    from wiki_hackathon import lint
+    from palimpsest import lint
     monkeypatch.setattr(lint, "supersedes_summary", lambda: [])
     monkeypatch.setattr(lint, "kg_stats", lambda: {"nodes": 0, "edges": 0})
     monkeypatch.setattr(lint, "CONCEPTS_DIR", tmp_path)
     monkeypatch.setattr(lint, "REPORTS_DIR", tmp_path)
-    monkeypatch.setattr("wiki_hackathon.wiki_io.CONCEPTS_DIR", tmp_path)
+    monkeypatch.setattr("palimpsest.wiki_io.CONCEPTS_DIR", tmp_path)
     (tmp_path / "a.md").write_text("[[b]]")
     fix_result = {"fixed": 0, "stripped": 1, "details": ["a: stripped [[b]]"]}
     p = lint.write_report(fix_result=fix_result)

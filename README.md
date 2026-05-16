@@ -1,10 +1,15 @@
-# wiki-hackathon
+# Palimpsest
+
+> *"writing material … on which the original writing has been effaced … but of which traces remain"*
 
 A self-correcting LLM wiki. A topic firehose streams in; the agent maintains a
 Karpathy-style markdown wiki and **rewrites pages plus writes a `:SUPERSEDES`
-edge in the Cognee knowledge graph** when contradictions arrive.
+edge in the Cognee knowledge graph** when contradictions arrive — the graph
+itself remembers what was true before. The name comes from medieval
+manuscripts that were scraped and rewritten with the earlier text still
+faintly visible: every `SUPERSEDES` edge is a palimpsest trace.
 
-Built for the AI-Memory Hackathon. Stack: **Cognee 1.1.0 · RedisVL 0.18.2 · Redis Stack · Gemini 3 · Python 3.11**.
+Built for the Cognee × Redis AI-Memory Hackathon. Stack: **Cognee 1.1.0 · RedisVL 0.18.2 · Redis Stack · Gemini 3 · Python 3.11**.
 
 ## Demo
 

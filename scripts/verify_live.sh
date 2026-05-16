@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wiki-hackathon — live verification harness.
+# Palimpsest — live verification harness.
 # Run this AFTER docker compose up -d and after setting GEMINI_API_KEY in .env.
 # Exits non-zero on any failure so you know exactly where the wheels come off.
 set -uo pipefail

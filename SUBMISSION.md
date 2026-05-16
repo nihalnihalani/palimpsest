@@ -1,10 +1,10 @@
-# Team Submission — wiki-hackathon
+# Team Submission — Palimpsest
 
 ## Team
 
-- Team name: wiki-hackathon
+- Team name: Palimpsest
 - Participants: Nihal Nihalani
-- Wiki / project name: wiki-hackathon (a self-correcting LLM wiki)
+- Wiki / project name: **Palimpsest** — a self-correcting LLM wiki. The graph itself remembers what was true before via `SUPERSEDES` edges (the palimpsest trace).
 
 ## Wiki Overview
 
@@ -36,15 +36,15 @@ from 0/3 → 3/3 after the new evidence is ingested, with citations.
   loop (see below) — that routes the agent's working memory through Redis
   as the hackathon brief's two-tier pattern requires.
 - **Code entry point:** `wiki ingest --once` →
-  `src/wiki_hackathon/ingest.py::process_one`.
+  `src/palimpsest/ingest.py::process_one`.
 
 ### Query + Self-improve
 
 - **How users query the wiki:** `wiki ask "<question>"` →
-  `src/wiki_hackathon/query.py::ask` →
+  `src/palimpsest/query.py::ask` →
   `cognee.search(GRAPH_COMPLETION)` + Gemini synthesis. Answers are
   semantically cached in Redis via **RedisVL `SemanticCache`**
-  (`src/wiki_hackathon/answer_cache.py`) for ~15 minutes, keyed by
+  (`src/palimpsest/answer_cache.py`) for ~15 minutes, keyed by
   Gemini-embedded question.
 - **Where feedback comes from:**
   1. Per-ingest: `query.check_contradiction` (Gemini call, exact-match
@@ -62,7 +62,7 @@ from 0/3 → 3/3 after the new evidence is ingested, with citations.
   and now `SkillRunEntry` + `improve_skill(apply=True)` rewriting
   `my_skills/*/SKILL.md` on disk.
 - **Code entry point:** `wiki ask` (`query.ask`); `wiki improve`
-  (`src/wiki_hackathon/skill_loop.py`).
+  (`src/palimpsest/skill_loop.py`).
 
 ### Lint
 
@@ -72,7 +72,7 @@ from 0/3 → 3/3 after the new evidence is ingested, with citations.
   `--fix`.
 - **How it runs:** on-demand via CLI (`wiki lint --fix`); the report is
   written to `wiki/reports/`.
-- **Code entry point:** `src/wiki_hackathon/lint.py`.
+- **Code entry point:** `src/palimpsest/lint.py`.
 
 ## Self-Improvement Evidence
 
@@ -189,7 +189,7 @@ Roles:
                                                    edits for accuracy
 ```
 
-The propose-then-apply loop lives in `src/wiki_hackathon/skill_loop.py`
+The propose-then-apply loop lives in `src/palimpsest/skill_loop.py`
 and exposes:
 
 - `wiki improve --remember`   — ingest `./my_skills` into cognee
@@ -202,8 +202,8 @@ and exposes:
 
 ```bash
 # 1. Clone + set up venv
-git clone https://github.com/nihalnihalani/wiki-hackathon.git
-cd wiki-hackathon
+git clone https://github.com/nihalnihalani/palimpsest.git
+cd palimpsest
 ./run.sh setup        # creates venv + brings up Redis + scaffolds .env
 
 # 2. Add your LLM key
@@ -223,7 +223,7 @@ wiki improve --apply <proposal_id-printed-above>
 
 # 5. Evidence
 wiki eval                       # held-out eval, run once
-python -m wiki_hackathon.cli evidence  # run N=5 and persist
+python -m palimpsest.cli evidence  # run N=5 and persist
 ls docs/evidence/
 ```
 
@@ -272,7 +272,7 @@ separate package and not used in this submission; see
 
 ## Links
 
-- Repo: https://github.com/nihalnihalani/wiki-hackathon
+- Repo: https://github.com/nihalnihalani/palimpsest
 - Design + plan: [`docs/plans/2026-05-17-full-hackathon-spec-design.md`](docs/plans/2026-05-17-full-hackathon-spec-design.md)
 - Earlier design: [`docs/plans/2026-05-16-wiki-hackathon-design.md`](docs/plans/2026-05-16-wiki-hackathon-design.md)
 - Evidence: [`docs/evidence/`](docs/evidence/)

@@ -1,5 +1,5 @@
 """Direct Gemini call (the path our app uses for synth/contradiction-check)."""
-from wiki_hackathon import config
+from palimpsest import config
 import google.generativeai as genai
 
 genai.configure(api_key=config.GEMINI_API_KEY)

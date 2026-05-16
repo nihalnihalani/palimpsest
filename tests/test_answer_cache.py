@@ -17,7 +17,7 @@ import pytest
 
 def test_vectorizer_dims_is_768() -> None:
     """dims must report 768 without making an API call."""
-    from wiki_hackathon.gemini_vectorizer import GeminiTextVectorizer
+    from palimpsest.gemini_vectorizer import GeminiTextVectorizer
 
     v = GeminiTextVectorizer()
     assert v.dims == 768
@@ -26,7 +26,7 @@ def test_vectorizer_dims_is_768() -> None:
 
 
 def test_vectorizer_model_name_prefixes_models() -> None:
-    from wiki_hackathon.gemini_vectorizer import GeminiTextVectorizer
+    from palimpsest.gemini_vectorizer import GeminiTextVectorizer
 
     v = GeminiTextVectorizer()
     assert v._model_name() == "models/text-embedding-004"
@@ -38,7 +38,7 @@ def test_vectorizer_model_name_prefixes_models() -> None:
 def test_vectorizer_embed_calls_gemini(monkeypatch) -> None:
     """_embed should call google.generativeai.embed_content and return floats."""
     import google.generativeai as genai
-    from wiki_hackathon.gemini_vectorizer import GeminiTextVectorizer
+    from palimpsest.gemini_vectorizer import GeminiTextVectorizer
 
     captured: dict[str, Any] = {}
 
@@ -60,7 +60,7 @@ def test_vectorizer_embed_calls_gemini(monkeypatch) -> None:
 
 def test_vectorizer_empty_response_raises(monkeypatch) -> None:
     import google.generativeai as genai
-    from wiki_hackathon.gemini_vectorizer import GeminiTextVectorizer
+    from palimpsest.gemini_vectorizer import GeminiTextVectorizer
 
     monkeypatch.setattr(genai, "configure", lambda **kw: None)
     monkeypatch.setattr(genai, "embed_content", lambda **kw: {"embedding": []})
@@ -123,7 +123,7 @@ class _FakeRedis:
 @pytest.fixture
 def fake_cache(monkeypatch):
     """Replace the lazy cache + redis client with in-memory fakes."""
-    from wiki_hackathon import answer_cache
+    from palimpsest import answer_cache
 
     fake = _FakeSemanticCache()
     fake_r = _FakeRedis()
@@ -137,7 +137,7 @@ def fake_cache(monkeypatch):
 
 
 def test_lookup_miss_returns_none(fake_cache) -> None:
-    from wiki_hackathon import answer_cache
+    from palimpsest import answer_cache
 
     fake, fake_r = fake_cache
     fake.next_hit = []
@@ -147,7 +147,7 @@ def test_lookup_miss_returns_none(fake_cache) -> None:
 
 
 def test_lookup_hit_returns_cached_answer(fake_cache) -> None:
-    from wiki_hackathon import answer_cache
+    from palimpsest import answer_cache
 
     fake, fake_r = fake_cache
     fake.next_hit = [{"response": "cached answer", "vector_distance": 0.05}]
@@ -156,7 +156,7 @@ def test_lookup_hit_returns_cached_answer(fake_cache) -> None:
 
 
 def test_store_records_in_cache(fake_cache) -> None:
-    from wiki_hackathon import answer_cache
+    from palimpsest import answer_cache
 
     fake, _ = fake_cache
     answer_cache.store("Q?", "A.")
@@ -164,7 +164,7 @@ def test_store_records_in_cache(fake_cache) -> None:
 
 
 def test_store_empty_is_noop(fake_cache) -> None:
-    from wiki_hackathon import answer_cache
+    from palimpsest import answer_cache
 
     fake, _ = fake_cache
     answer_cache.store("", "A.")
@@ -173,7 +173,7 @@ def test_store_empty_is_noop(fake_cache) -> None:
 
 
 def test_stats_reports_counters(fake_cache) -> None:
-    from wiki_hackathon import answer_cache
+    from palimpsest import answer_cache
 
     fake, fake_r = fake_cache
     fake_r.store[answer_cache.METRICS_HITS_KEY] = 3
@@ -184,7 +184,7 @@ def test_stats_reports_counters(fake_cache) -> None:
 
 
 def test_reset_clears_cache_and_counters(fake_cache) -> None:
-    from wiki_hackathon import answer_cache
+    from palimpsest import answer_cache
 
     fake, fake_r = fake_cache
     fake_r.store[answer_cache.METRICS_HITS_KEY] = 5
@@ -199,7 +199,7 @@ def test_reset_clears_cache_and_counters(fake_cache) -> None:
 
 def test_lookup_swallows_errors(monkeypatch) -> None:
     """If the underlying cache raises, lookup returns None silently."""
-    from wiki_hackathon import answer_cache
+    from palimpsest import answer_cache
 
     monkeypatch.setattr(answer_cache, "_cache", None)
     monkeypatch.setattr(answer_cache, "_vectorizer", None)
@@ -216,7 +216,7 @@ def test_lookup_swallows_errors(monkeypatch) -> None:
 
 def test_store_swallows_errors(monkeypatch) -> None:
     """If the underlying cache raises on store, no exception bubbles out."""
-    from wiki_hackathon import answer_cache
+    from palimpsest import answer_cache
 
     monkeypatch.setattr(answer_cache, "_cache", None)
     monkeypatch.setattr(answer_cache, "_vectorizer", None)
@@ -231,7 +231,7 @@ def test_store_swallows_errors(monkeypatch) -> None:
 
 def test_query_ask_survives_cache_outage(monkeypatch) -> None:
     """query.ask must still return an answer when answer_cache is broken."""
-    from wiki_hackathon import query, answer_cache, cognee_io, gemini_io, wiki_io
+    from palimpsest import query, answer_cache, cognee_io, gemini_io, wiki_io
 
     def boom(*args, **kwargs):
         raise RuntimeError("simulated cache outage")
@@ -253,7 +253,7 @@ def test_query_ask_survives_cache_outage(monkeypatch) -> None:
 
 def test_query_ask_returns_cached_when_hit(monkeypatch) -> None:
     """When lookup hits, ask returns early without calling cognee/gemini."""
-    from wiki_hackathon import query, answer_cache, cognee_io, gemini_io
+    from palimpsest import query, answer_cache, cognee_io, gemini_io
 
     monkeypatch.setattr(answer_cache, "lookup", lambda q: "CACHED")
     # If these are touched, the test fails.
@@ -281,7 +281,7 @@ def test_query_ask_returns_cached_when_hit(monkeypatch) -> None:
 def test_imports_are_lazy() -> None:
     """Both modules must import without touching Redis or genai."""
     # Already imported by other tests, but doing it explicitly is fine.
-    from wiki_hackathon import answer_cache, gemini_vectorizer  # noqa: F401
+    from palimpsest import answer_cache, gemini_vectorizer  # noqa: F401
 
     # Module-level singletons should still be unset at import-time.
     # (Other tests may have populated them by now, so we can't strictly assert

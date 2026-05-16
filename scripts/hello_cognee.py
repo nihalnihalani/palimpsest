@@ -2,7 +2,7 @@
 This is also the integration smoke test for Gemini 3 + Cognee + Redis vector adapter.
 """
 import asyncio
-from wiki_hackathon import config  # noqa: F401  (loads .env, patches litellm)
+from palimpsest import config  # noqa: F401  (loads .env, patches litellm)
 
 import cognee
 from cognee.api.v1.search import SearchType

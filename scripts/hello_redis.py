@@ -1,6 +1,6 @@
 """Round-trip XADD → XREADGROUP to prove Redis Stack + streams work."""
 import redis
-from wiki_hackathon.config import REDIS_URL, STREAM, GROUP, CONSUMER
+from palimpsest.config import REDIS_URL, STREAM, GROUP, CONSUMER
 
 r = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 print("PING:", r.ping())

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wiki-hackathon orchestrator. One script to rule them all.
+# Palimpsest orchestrator. One script to rule them all.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -193,7 +193,7 @@ cmd_all() {
 
 cmd_help() {
     cat <<HELP
-wiki-hackathon orchestrator
+Palimpsest orchestrator
 
 Usage: ./run.sh <subcommand>
 

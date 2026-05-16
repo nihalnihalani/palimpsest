@@ -41,7 +41,7 @@ def _init() -> None:
 
 def get_logger(name: str) -> logging.Logger:
     _init()
-    short = name.replace("wiki_hackathon.", "wiki.")
+    short = name.replace("palimpsest.", "wiki.")
     return logging.getLogger(short)
 
 

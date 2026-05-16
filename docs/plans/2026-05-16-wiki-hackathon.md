@@ -32,8 +32,8 @@
 ```bash
 cd /Users/nihalnihalani/Desktop/Github/wiki-hackathon
 git init
-mkdir -p src/wiki_hackathon scripts data/canned snapshot demo tests wiki/concepts wiki/reports
-touch src/wiki_hackathon/__init__.py
+mkdir -p src/palimpsest scripts data/canned snapshot demo tests wiki/concepts wiki/reports
+touch src/palimpsest/__init__.py
 ```
 
 **Step 2: Write `pyproject.toml`**
@@ -55,7 +55,7 @@ dependencies = [
 ]
 
 [project.scripts]
-wiki = "wiki_hackathon.cli:cli"
+wiki = "palimpsest.cli:cli"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -180,7 +180,7 @@ pip freeze > requirements.lock
 
 Expected: cognee + redis + google-generativeai install without errors. If `cognee` install is slow (it pulls many deps), let it run; don't ctrl-C.
 
-**Step 2: Write `src/wiki_hackathon/config.py`**
+**Step 2: Write `src/palimpsest/config.py`**
 
 ```python
 """Centralized env + Cognee bootstrap. Import this BEFORE any cognee submodules."""
@@ -252,7 +252,7 @@ patch_litellm_for_gemini3()
 **Step 3: Commit**
 
 ```bash
-git add pyproject.toml requirements.lock src/wiki_hackathon/config.py
+git add pyproject.toml requirements.lock src/palimpsest/config.py
 git commit -m "feat: env config + LiteLLM Gemini 3 patch"
 ```
 
@@ -265,7 +265,7 @@ git commit -m "feat: env config + LiteLLM Gemini 3 patch"
 ```python
 """Round-trip XADD → XREADGROUP to prove Redis Stack + streams work."""
 import redis
-from wiki_hackathon.config import REDIS_URL, STREAM, GROUP, CONSUMER
+from palimpsest.config import REDIS_URL, STREAM, GROUP, CONSUMER
 
 r = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 print("PING:", r.ping())
@@ -311,7 +311,7 @@ Commit: `git add scripts/hello_redis.py && git commit -m "test: hello_redis scri
 This is also the integration smoke test for Gemini 3 + Cognee + Redis vector adapter.
 """
 import asyncio
-from wiki_hackathon import config  # noqa: F401  (loads .env, patches litellm)
+from palimpsest import config  # noqa: F401  (loads .env, patches litellm)
 
 import cognee
 from cognee.api.v1.search import SearchType
@@ -376,7 +376,7 @@ Commit: `git add scripts/hello_cognee.py && git commit -m "test: hello_cognee sc
 
 ```python
 """Direct Gemini call (the path our app uses for synth/contradiction-check)."""
-from wiki_hackathon import config
+from palimpsest import config
 import google.generativeai as genai
 
 genai.configure(api_key=config.GEMINI_API_KEY)
@@ -398,7 +398,7 @@ Commit: `git add scripts/hello_gemini.py && git commit -m "test: hello_gemini sc
 
 ### Task 1.1: `redis_bus.py`
 
-**Files:** Create `src/wiki_hackathon/redis_bus.py`
+**Files:** Create `src/palimpsest/redis_bus.py`
 
 ```python
 """All Redis ops in one file. Streams + JSON + Pub/Sub + verdict cache + dedup."""
@@ -542,13 +542,13 @@ def reset_streams() -> None:
         c.delete(k)
 ```
 
-Commit: `git add src/wiki_hackathon/redis_bus.py && git commit -m "feat: redis bus (streams + JSON + pubsub + verdict cache)"`
+Commit: `git add src/palimpsest/redis_bus.py && git commit -m "feat: redis bus (streams + JSON + pubsub + verdict cache)"`
 
 ---
 
 ### Task 1.2: `cognee_io.py`
 
-**Files:** Create `src/wiki_hackathon/cognee_io.py`
+**Files:** Create `src/palimpsest/cognee_io.py`
 
 ```python
 """Thin async wrapper over Cognee. All cognee calls live here so swaps stay local."""
@@ -659,7 +659,7 @@ def run(coro):
     return asyncio.run(coro)
 ```
 
-Commit: `git add src/wiki_hackathon/cognee_io.py && git commit -m "feat: cognee IO wrapper with SUPERSEDES edge writer"`
+Commit: `git add src/palimpsest/cognee_io.py && git commit -m "feat: cognee IO wrapper with SUPERSEDES edge writer"`
 
 ---
 
@@ -668,7 +668,7 @@ Commit: `git add src/wiki_hackathon/cognee_io.py && git commit -m "feat: cognee 
 ### Task 2.1: Lift `wiki_io.py` from OpenKB
 
 **Files:**
-- Create: `src/wiki_hackathon/wiki_io.py`
+- Create: `src/palimpsest/wiki_io.py`
 - Read: `/Users/nihalnihalani/Desktop/Github/OpenKB-main/openkb/agent/compiler.py` (look for `_write_concept`, `_prepend_source_to_frontmatter`, `_update_index`, `_extract_wikilinks`, `_normalize_target`)
 
 **Step 1: Write a minimal `wiki_io.py` that doesn't need the full OpenKB schema.** Hackathon scope is tight — don't drag in OpenKB's frontmatter complexity. Just slug, body, [[wikilinks]].
@@ -725,13 +725,13 @@ def list_concepts() -> list[str]:
     return sorted(p.stem for p in CONCEPTS_DIR.glob("*.md"))
 ```
 
-Commit: `git add src/wiki_hackathon/wiki_io.py && git commit -m "feat: wiki markdown IO"`
+Commit: `git add src/palimpsest/wiki_io.py && git commit -m "feat: wiki markdown IO"`
 
 ---
 
 ### Task 2.2: `prompts.py`
 
-**Files:** Create `src/wiki_hackathon/prompts.py`
+**Files:** Create `src/palimpsest/prompts.py`
 
 ```python
 """All Gemini prompt templates. Strict JSON outputs where parsing is needed."""
@@ -815,13 +815,13 @@ Model answer:
 """
 ```
 
-Commit: `git add src/wiki_hackathon/prompts.py && git commit -m "feat: prompt templates"`
+Commit: `git add src/palimpsest/prompts.py && git commit -m "feat: prompt templates"`
 
 ---
 
 ### Task 2.3: `gemini_io.py` — JSON-safe Gemini calls
 
-**Files:** Create `src/wiki_hackathon/gemini_io.py`
+**Files:** Create `src/palimpsest/gemini_io.py`
 
 ```python
 """Direct Gemini SDK wrapper. Always use these helpers, not raw genai, so JSON
@@ -858,13 +858,13 @@ def generate_json(prompt: str) -> dict[str, Any]:
         return json.loads(repair_json(raw))
 ```
 
-Commit: `git add src/wiki_hackathon/gemini_io.py && git commit -m "feat: gemini JSON-safe wrapper"`
+Commit: `git add src/palimpsest/gemini_io.py && git commit -m "feat: gemini JSON-safe wrapper"`
 
 ---
 
 ### Task 2.4: `ingest.py` worker
 
-**Files:** Create `src/wiki_hackathon/ingest.py`
+**Files:** Create `src/palimpsest/ingest.py`
 
 ```python
 """The ingest worker. One message at a time — no overlap (Cognee Kuzu lock)."""
@@ -950,13 +950,13 @@ def run_forever() -> None:
             time.sleep(1)
 ```
 
-Commit: `git add src/wiki_hackathon/ingest.py && git commit -m "feat: ingest worker"`
+Commit: `git add src/palimpsest/ingest.py && git commit -m "feat: ingest worker"`
 
 ---
 
 ### Task 2.5: CLI v1 — `ingest`, `inject`, manual run
 
-**Files:** Create `src/wiki_hackathon/cli.py`
+**Files:** Create `src/palimpsest/cli.py`
 
 ```python
 """wiki — single Click entrypoint."""
@@ -1035,7 +1035,7 @@ cat wiki/log.md
 Expected: at least one `wiki/concepts/<slug>.md` exists; `log.md` has one INGEST line.
 If 0 concepts: `top_concepts()` returned empty — Cognee INSIGHTS format varies; inspect with `python scripts/hello_cognee.py` and adjust the defensive parsing in `cognee_io.top_concepts`.
 
-Commit: `git add src/wiki_hackathon/cli.py && git commit -m "feat: CLI with inject + ingest"`
+Commit: `git add src/palimpsest/cli.py && git commit -m "feat: CLI with inject + ingest"`
 
 **Phase 2 gate:** End-to-end ingest works. Clock check: ≤2:05 PM.
 
@@ -1045,7 +1045,7 @@ Commit: `git add src/wiki_hackathon/cli.py && git commit -m "feat: CLI with inje
 
 ### Task 3.1: `query.py`
 
-**Files:** Create `src/wiki_hackathon/query.py`
+**Files:** Create `src/palimpsest/query.py`
 
 ```python
 """Query path with contradiction detection + SUPERSEDES edge write.
@@ -1132,13 +1132,13 @@ def ask(question: str) -> str:
     return answer
 ```
 
-Commit: `git add src/wiki_hackathon/query.py && git commit -m "feat: query + self-correction with SUPERSEDES edge"`
+Commit: `git add src/palimpsest/query.py && git commit -m "feat: query + self-correction with SUPERSEDES edge"`
 
 ---
 
 ### Task 3.2: Wire self-correction into ingest
 
-**Files:** Modify `src/wiki_hackathon/ingest.py` — add a self-correction pass after concept writes.
+**Files:** Modify `src/palimpsest/ingest.py` — add a self-correction pass after concept writes.
 
 Replace `process_one` with:
 
@@ -1191,13 +1191,13 @@ def process_one(item: dict[str, Any]) -> dict[str, Any]:
 
 (`run_once` and `run_forever` stay the same.)
 
-Commit: `git add src/wiki_hackathon/ingest.py && git commit -m "feat: self-correction in ingest path"`
+Commit: `git add src/palimpsest/ingest.py && git commit -m "feat: self-correction in ingest path"`
 
 ---
 
 ### Task 3.3: CLI `ask` + `graph supersedes`
 
-**Files:** Modify `src/wiki_hackathon/cli.py` — append:
+**Files:** Modify `src/palimpsest/cli.py` — append:
 
 ```python
 from . import cognee_io
@@ -1243,7 +1243,7 @@ wiki ask "what are agents?"
 # expect: a synthesized answer, possibly with [[wikilinks]]
 ```
 
-Commit: `git add src/wiki_hackathon/cli.py && git commit -m "feat: ask + graph CLI commands"`
+Commit: `git add src/palimpsest/cli.py && git commit -m "feat: ask + graph CLI commands"`
 
 ---
 
@@ -1280,7 +1280,7 @@ Commit (only if successful): `git commit --allow-empty -m "test: self-correction
 
 ### Task 4.1: `lint.py`
 
-**Files:** Create `src/wiki_hackathon/lint.py`
+**Files:** Create `src/palimpsest/lint.py`
 
 ```python
 """Lint = structural (forked OpenKB pattern) + knowledge (Cognee Cypher)."""
@@ -1370,13 +1370,13 @@ def write_report() -> Path:
     return p
 ```
 
-Commit: `git add src/wiki_hackathon/lint.py && git commit -m "feat: lint with metrics + supersedes summary"`
+Commit: `git add src/palimpsest/lint.py && git commit -m "feat: lint with metrics + supersedes summary"`
 
 ---
 
 ### Task 4.2: CLI `lint`
 
-**Files:** Modify `src/wiki_hackathon/cli.py`:
+**Files:** Modify `src/palimpsest/cli.py`:
 
 ```python
 from . import lint as lint_mod
@@ -1393,7 +1393,7 @@ def lint() -> None:
 Smoke: `wiki lint && ls wiki/reports/`
 Expected: a `lint-*.md` with the metrics table populated.
 
-Commit: `git add src/wiki_hackathon/cli.py && git commit -m "feat: lint CLI command"`
+Commit: `git add src/palimpsest/cli.py && git commit -m "feat: lint CLI command"`
 
 ---
 
@@ -1409,8 +1409,8 @@ import time
 
 import pytest
 
-from wiki_hackathon import redis_bus, wiki_io, lint
-from wiki_hackathon.config import CONCEPTS_DIR
+from palimpsest import redis_bus, wiki_io, lint
+from palimpsest.config import CONCEPTS_DIR
 
 
 @pytest.fixture(autouse=True)
@@ -1430,7 +1430,7 @@ def test_audit_and_publish() -> None:
 
 
 def test_wiki_io_roundtrip(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr("wiki_hackathon.wiki_io.CONCEPTS_DIR", tmp_path)
+    monkeypatch.setattr("palimpsest.wiki_io.CONCEPTS_DIR", tmp_path)
     wiki_io.write_concept("foo", "Foo", "Body of [[bar]]", ["src1"])
     assert (tmp_path / "foo.md").exists()
     assert "[[bar]]" in (tmp_path / "foo.md").read_text()
@@ -1442,7 +1442,7 @@ def test_lint_report_minimal(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(lint, "kg_stats", lambda: {"nodes": 0, "edges": 0})
     monkeypatch.setattr(lint, "CONCEPTS_DIR", tmp_path)
     monkeypatch.setattr(lint, "REPORTS_DIR", tmp_path)
-    monkeypatch.setattr("wiki_hackathon.wiki_io.CONCEPTS_DIR", tmp_path)
+    monkeypatch.setattr("palimpsest.wiki_io.CONCEPTS_DIR", tmp_path)
     (tmp_path / "a.md").write_text("[[b]]")
     p = lint.write_report()
     assert "broken wikilinks" in p.read_text()
@@ -1509,19 +1509,19 @@ Write items with this template (one JSON object per line). They MUST collectivel
 {"id":"con-003","source":"blog","title":"Redis benchmark retracted","body":"Redis retracted its agent-memory latency benchmark after methodological errors. Independent reruns show parity with vector-only stores.","url":"https://example.com/retraction","ts":"2026-05-16T14:02:00"}
 ```
 
-Add the contradiction IDs to the override set so the demo is deterministic. Edit `src/wiki_hackathon/query.py`:
+Add the contradiction IDs to the override set so the demo is deterministic. Edit `src/palimpsest/query.py`:
 
 ```python
 CANNED_REWRITE_TRIGGERS: set[str] = {"con-001", "con-002", "con-003"}
 ```
 
-Commit: `git add data/canned src/wiki_hackathon/query.py && git commit -m "data: seed items + 3 canned contradictions"`
+Commit: `git add data/canned src/palimpsest/query.py && git commit -m "data: seed items + 3 canned contradictions"`
 
 ---
 
 ### Task 5.3: `seed` and `replay` commands
 
-**Files:** Create `src/wiki_hackathon/replay.py`
+**Files:** Create `src/palimpsest/replay.py`
 
 ```python
 """Replay a JSONL file into the firehose stream, then run ingest until drained."""
@@ -1558,7 +1558,7 @@ def drain() -> int:
     return processed
 ```
 
-**Files:** Modify `src/wiki_hackathon/cli.py`:
+**Files:** Modify `src/palimpsest/cli.py`:
 
 ```python
 from pathlib import Path
@@ -1607,7 +1607,7 @@ This pre-baked state is what gets loaded for the demo. Save the wiki + cognee st
 tar czf snapshot/demo-baked.tar.gz wiki/ .cognee_system/ .data_storage/ 2>/dev/null || true
 ```
 
-Commit: `git add src/wiki_hackathon/replay.py src/wiki_hackathon/cli.py && git commit -m "feat: seed + reset commands"`
+Commit: `git add src/palimpsest/replay.py src/palimpsest/cli.py && git commit -m "feat: seed + reset commands"`
 
 **Phase 5 gate:** Pre-baked wiki has 5+ concept pages, graph has nodes/edges. Clock: ≤3:20 PM.
 
@@ -1617,7 +1617,7 @@ Commit: `git add src/wiki_hackathon/replay.py src/wiki_hackathon/cli.py && git c
 
 ### Task 6.1: `dashboard.py`
 
-**Files:** Create `src/wiki_hackathon/dashboard.py`
+**Files:** Create `src/palimpsest/dashboard.py`
 
 ```python
 """Three-pane rich Layout dashboard. Subscribes to wiki:events for live updates."""
@@ -1716,7 +1716,7 @@ def run() -> None:
             time.sleep(0.5)
 ```
 
-**Files:** Modify `src/wiki_hackathon/cli.py`:
+**Files:** Modify `src/palimpsest/cli.py`:
 
 ```python
 from . import dashboard
@@ -1729,13 +1729,13 @@ def dash() -> None:
 
 Smoke: `wiki dash` — should render a 3-pane layout with metrics. Ctrl-C to exit. If `cognee_io.graph_stats()` is slow (>500ms), the dashboard will stutter — wrap it in a cached value updated every 5s instead. Skip if behind schedule.
 
-Commit: `git add src/wiki_hackathon/dashboard.py src/wiki_hackathon/cli.py && git commit -m "feat: rich dashboard"`
+Commit: `git add src/palimpsest/dashboard.py src/palimpsest/cli.py && git commit -m "feat: rich dashboard"`
 
 ---
 
 ### Task 6.2: `eval.py`
 
-**Files:** Create `src/wiki_hackathon/eval.py`
+**Files:** Create `src/palimpsest/eval.py`
 
 ```python
 """Held-out eval: a question that flips 0/3 → 3/3 after ingest.
@@ -1767,7 +1767,7 @@ def run() -> dict:
     }
 ```
 
-**Files:** Modify `src/wiki_hackathon/cli.py`:
+**Files:** Modify `src/palimpsest/cli.py`:
 
 ```python
 from . import eval as eval_mod
@@ -1790,7 +1790,7 @@ wiki eval
 # expect: score 2/3 or 3/3; Karpathy/MemGPT/Cognee found
 ```
 
-Commit: `git add src/wiki_hackathon/eval.py src/wiki_hackathon/cli.py && git commit -m "feat: held-out eval (0/3 → 3/3 metric)"`
+Commit: `git add src/palimpsest/eval.py src/palimpsest/cli.py && git commit -m "feat: held-out eval (0/3 → 3/3 metric)"`
 
 **Phase 6 gate:** Dashboard + eval both work. Clock: ≤3:45 PM.
 

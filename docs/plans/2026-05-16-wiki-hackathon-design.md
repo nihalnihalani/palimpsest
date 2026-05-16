@@ -188,7 +188,7 @@ Shown on screen as a before/after table. Numbers beat narrative.
 
 ```
 wiki-hackathon/
-├── pyproject.toml                 deps + entry: wiki = wiki_hackathon.cli:cli
+├── pyproject.toml                 deps + entry: wiki = palimpsest.cli:cli
 ├── docker-compose.yml             redis-stack service only
 ├── .env.example                   Gemini key, Cognee env, instructor_mode=json_mode
 ├── README.md                      60 lines, link to recording
@@ -203,7 +203,7 @@ wiki-hackathon/
 │   ├── hello_redis.py
 │   ├── hello_cognee.py
 │   └── hello_gemini.py
-├── src/wiki_hackathon/
+├── src/palimpsest/
 │   ├── __init__.py
 │   ├── cli.py                     ingest, ask, lint, seed, inject, eval, dash, graph
 │   ├── config.py                  env + Cognee bootstrap (vector=redis)

@@ -22,11 +22,11 @@ Both are addressed below.
 - `P2` — Port `cognee_io.py` to the new `remember`/`recall` API. Keep public function names stable so the rest of the codebase (ingest.py, query.py, eval.py, rethink.py, lint.py, timemachine.py) stays untouched.
 - `P3` — Real self-improvement loop:
   - `my_skills/{wiki-ingest, wiki-query, code-review}/SKILL.md` per brief frontmatter.
-  - New `src/wiki_hackathon/skill_loop.py` implementing the brief's `remember(SkillRunEntry, …, skill_improvement={apply: False})` then `improve_skill(…, apply=True)` cycle.
+  - New `src/palimpsest/skill_loop.py` implementing the brief's `remember(SkillRunEntry, …, skill_improvement={apply: False})` then `improve_skill(…, apply=True)` cycle.
   - New `wiki improve` CLI subcommand.
 - `P4` — RedisVL `SemanticCache` for query→answer (NOT the contradiction cache, which is correctly exact-match):
-  - `src/wiki_hackathon/gemini_vectorizer.py` — custom `BaseVectorizer` reusing Gemini embeddings (avoids the torch dep that `HFTextVectorizer` would pull in).
-  - `src/wiki_hackathon/answer_cache.py` — `SemanticCache` wrapper.
+  - `src/palimpsest/gemini_vectorizer.py` — custom `BaseVectorizer` reusing Gemini embeddings (avoids the torch dep that `HFTextVectorizer` would pull in).
+  - `src/palimpsest/answer_cache.py` — `SemanticCache` wrapper.
   - Wire into `query.ask()` ahead of the existing verdict cache.
 - `P5` — `wiki vector-smoke` CLI — asserts the resolved vector provider, dumps `docs/evidence/vector_provider.txt`. This is the DA's "don't lie about Redis vectors" check.
 - `P6` — `SUBMISSION.md` at repo root, filled in *truthfully*:

@@ -1,5 +1,5 @@
 [project]
-name = "wiki-hackathon"
+name = "palimpsest"
 version = "0.1.0"
 requires-python = ">=3.11,<3.14"
 dependencies = [
@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-wiki = "wiki_hackathon.cli:cli"
+wiki = "palimpsest.cli:cli"
 
 [build-system]
 requires = ["setuptools>=68"]

@@ -15,7 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from wiki_hackathon import skill_loop
+from palimpsest import skill_loop
 
 
 # ---------------------------------------------------------------------------
