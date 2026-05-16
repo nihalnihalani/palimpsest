@@ -94,6 +94,20 @@ def graph_stats() -> None:
     click.echo(f"nodes={s['nodes']}  edges={s['edges']}")
 
 
+# ---- rethink (cognee.memify-style self-improvement) --------------------
+
+@cli.command()
+def rethink() -> None:
+    """Run Cognee memify-style enrichment on the existing graph. No new ingest."""
+    from . import rethink as rethink_mod  # lazy: pulls in Cognee + Gemini
+    result = rethink_mod.rethink()
+    click.echo(f"inspected {result['entities_inspected']} entities")
+    click.echo(f"contradictions surfaced: {result['contradictions_found']}")
+    click.echo(f"inferred edges written: {result['inferred_edges']}")
+    for d in result.get("details", [])[:5]:
+        click.echo(f"  - {d}")
+
+
 # ---- lint --------------------------------------------------------------
 
 @cli.command()

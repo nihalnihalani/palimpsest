@@ -52,6 +52,84 @@ def test_wiki_io_roundtrip(tmp_path, monkeypatch) -> None:
     assert "[[bar]]" in (tmp_path / "foo.md").read_text()
 
 
+def test_rethink_offline(monkeypatch) -> None:
+    """rethink() should walk the graph, call Gemini per entity, write edges.
+
+    Fully offline: monkeypatches cognee_io helpers + gemini_io.generate_json.
+    Forces the manual path (no memify) so we exercise the deterministic
+    fallback that ships with the CLI.
+    """
+    from wiki_hackathon import rethink as rethink_mod
+    from wiki_hackathon import cognee_io, gemini_io
+
+    # Fake graph: 2 entities, each with a non-empty neighborhood
+    fake_entities = [
+        ("entity:agents", {"name": "AI Agents"}),
+        ("entity:cognee", {"name": "Cognee"}),
+        ("entity:lonely", {"name": "Lonely"}),  # no neighborhood — filtered
+    ]
+    fake_nbh = {
+        "entity:agents": [
+            ("entity:cognee", "USES", "out"),
+            ("entity:gemini", "POWERED_BY", "out"),
+        ],
+        "entity:cognee": [
+            ("entity:agents", "USES", "in"),
+            ("entity:graph", "STORES_IN", "out"),
+        ],
+        "entity:lonely": [],
+    }
+
+    async def fake_list_entities(limit: int = 50):
+        return fake_entities[:limit]
+
+    async def fake_list_neighborhood(node_id: str):
+        return fake_nbh.get(node_id, [])
+
+    write_calls: list[tuple[str, str, str, str]] = []
+
+    async def fake_write_inferred_edge(src, dst, rel, reason):
+        write_calls.append((src, dst, rel, reason))
+
+    monkeypatch.setattr(cognee_io, "list_entities", fake_list_entities)
+    monkeypatch.setattr(cognee_io, "list_neighborhood", fake_list_neighborhood)
+    monkeypatch.setattr(cognee_io, "write_inferred_edge", fake_write_inferred_edge)
+
+    gemini_call_count = {"n": 0}
+
+    def fake_generate_json(prompt: str):
+        gemini_call_count["n"] += 1
+        # Each call returns one inferred edge + one contradiction so we can
+        # verify both branches.
+        return {
+            "contradictions": [
+                {"a": "x", "b": "y", "explanation": "they conflict"}
+            ],
+            "inferred_edges": [
+                {"from": "<self>", "to": "entity:other",
+                 "rel": "RELATED_TO", "reason": "obvious"}
+            ],
+        }
+
+    monkeypatch.setattr(gemini_io, "generate_json", fake_generate_json)
+
+    # Force the manual path so the test never touches a real cognee.memify
+    monkeypatch.setattr(rethink_mod, "_memify_available", lambda: False)
+
+    result = rethink_mod.rethink()
+
+    # Only the 2 entities with neighborhoods get inspected; "lonely" is filtered
+    assert result["entities_inspected"] == 2
+    assert gemini_call_count["n"] == 2
+    assert result["contradictions_found"] == 2  # one per entity
+    assert result["inferred_edges"] == 2  # one edge each
+    assert len(write_calls) == 2
+    # And the <self> placeholder got rewritten to the node id
+    srcs = {c[0] for c in write_calls}
+    assert "entity:agents" in srcs and "entity:cognee" in srcs
+    assert result["path"] == "manual"
+
+
 def test_lint_report_minimal(monkeypatch, tmp_path) -> None:
     # Stub Cognee calls so test runs without it
     monkeypatch.setattr(lint, "supersedes_summary", lambda: [])

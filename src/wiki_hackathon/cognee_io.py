@@ -109,6 +109,57 @@ async def list_supersedes() -> list[dict]:
     return out
 
 
+async def list_entities(limit: int = 50) -> list[tuple[str, dict]]:
+    """Return (node_id, properties) for entity-like nodes."""
+    graph = await get_graph_engine()
+    nodes, _ = await graph.get_graph_data()
+    out = []
+    for n in nodes or []:
+        if isinstance(n, (list, tuple)) and len(n) >= 2:
+            nid, props = n[0], n[1]
+        elif isinstance(n, dict):
+            nid, props = n.get("id"), n
+        else:
+            continue
+        if not nid:
+            continue
+        out.append((nid, props or {}))
+    return out[:limit]
+
+
+async def list_neighborhood(node_id: str) -> list[tuple[str, str, str]]:
+    """Return list of (other_node_id, rel, direction) for one node."""
+    graph = await get_graph_engine()
+    _, edges = await graph.get_graph_data()
+    out = []
+    for e in edges or []:
+        if isinstance(e, (list, tuple)):
+            if len(e) == 4:
+                src, dst, rel, _ = e
+            elif len(e) == 3:
+                src, dst, props = e
+                rel = (props or {}).get("relationship_name", "")
+            else:
+                continue
+            if src == node_id:
+                out.append((dst, rel, "out"))
+            elif dst == node_id:
+                out.append((src, rel, "in"))
+    return out
+
+
+async def write_inferred_edge(src: str, dst: str, rel: str,
+                              reason: str) -> None:
+    """Like write_supersedes_edge but for INFERRED-relationship rethink output."""
+    import time
+    graph = await get_graph_engine()
+    await graph.add_edge(
+        src, dst,
+        relationship_name=rel or "RELATED_TO",
+        properties={"source": "rethink", "reason": reason, "ts": time.time()},
+    )
+
+
 async def graph_stats() -> dict:
     graph = await get_graph_engine()
     nodes, edges = await graph.get_graph_data()

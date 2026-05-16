@@ -84,3 +84,18 @@ Extract 1-3 distinct concept names from this item that are worth a dedicated wik
 Item title: {title}
 Item body: {body}
 """
+
+RETHINK = """\
+You inspect a slice of a knowledge graph and propose improvements.
+
+Entity: {entity}
+Current relationships (subject -[rel]-> object):
+{neighborhood}
+
+Return STRICT JSON:
+  "contradictions": [{{"a": "claim1", "b": "claim2", "explanation": "..."}}, ...]
+  "inferred_edges": [{{"from": "<entity1>", "to": "<entity2>", "rel": "RELATED_TO", "reason": "..."}}, ...]
+
+Only propose inferred edges that are well-supported by the existing relationships.
+If nothing to add, return empty arrays.
+"""
