@@ -5,6 +5,7 @@ __pycache__/
 *.egg-info/
 .env
 .cognee_system/
+.cognee_cache/
 .data_storage/
 snapshot/*.tar.gz
 wiki/concepts/*.md

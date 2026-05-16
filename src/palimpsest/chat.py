@@ -48,9 +48,9 @@ def _send_to_gemini(history: list[dict], user_msg: str) -> str:
     chat object — simpler, equally correct, and gives us a clear hook for
     injecting wiki snippets as recent context."""
     import google.generativeai as genai
-    from .config import GEMINI_API_KEY
+    from .config import GEMINI_API_KEY, GEMINI_NATIVE_MODEL
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-3-pro", system_instruction=SYSTEM_PRIMER)
+    model = genai.GenerativeModel(GEMINI_NATIVE_MODEL, system_instruction=SYSTEM_PRIMER)
     chat = model.start_chat(history=history)
     # Prepend current wiki snippets to the user message so Gemini stays grounded
     snippets = _read_concept_snippets()

@@ -14,6 +14,20 @@ log_pass() { printf "  \033[32m✓\033[0m %s\n" "$1"; PASS=$((PASS+1)); }
 log_fail() { printf "  \033[31m✗\033[0m %s\n" "$1"; FAIL=$((FAIL+1)); }
 section() { printf "\n\033[1m== %s ==\033[0m\n" "$1"; }
 
+# Host-only hint for logs (avoid printing Redis credentials under set -u)
+REDIS_URL_HINT=""
+if [ -f .env ]; then
+    _ru=$(grep -E '^REDIS_URL=' .env | head -1 | cut -d= -f2- || true)
+    case "$_ru" in
+        redis://*@*)
+            REDIS_URL_HINT=$(printf '%s' "$_ru" | sed -E 's|redis://[^@]*@([^:/]+).*|\1|') ;;
+        redis://*)
+            REDIS_URL_HINT=$(printf '%s' "$_ru" | sed -E 's|redis://([^:/]+).*|\1|') ;;
+        *) REDIS_URL_HINT="(custom REDIS_URL)" ;;
+    esac
+fi
+REDIS_URL_HINT=${REDIS_URL_HINT:-localhost}
+
 section "1. Redis reachable"
 # Use Python so it works against docker, brew, OR Redis Cloud (any REDIS_URL).
 REDIS_PING=$(python -c "

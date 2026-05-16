@@ -7,13 +7,13 @@ from typing import Any
 
 from json_repair import repair_json
 
-from .config import GEMINI_API_KEY
+from .config import GEMINI_API_KEY, GEMINI_NATIVE_MODEL
 from .logs import get_logger, event
 from .prompts import EXTRACT_CONCEPTS
 
 logger = get_logger(__name__)
 
-_MODEL_NAME = "gemini-3-pro"
+_MODEL_NAME = GEMINI_NATIVE_MODEL
 _configured = False
 
 

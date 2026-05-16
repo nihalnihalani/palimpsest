@@ -83,8 +83,7 @@ def run() -> int:
     _hdr("Cognee graph")
     try:
         from . import cognee_io
-        stats = cognee_io.run(cognee_io.graph_stats())
-        sups = cognee_io.run(cognee_io.list_supersedes())
+        stats, sups = cognee_io.run(cognee_io.doctor_graph_snapshot())
         _ok(
             f"nodes={stats['nodes']}  edges={stats['edges']}  "
             f"SUPERSEDES={len(sups)}"

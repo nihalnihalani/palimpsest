@@ -131,12 +131,25 @@ async def search_completion(query: str) -> str:
 
 async def search_insights(query: str) -> list[Any]:
     """Cognee V2: recall() with TRIPLET_COMPLETION. Returns the raw response
-    list — callers (top_concepts) defensively parse triples/answer text."""
-    return await cognee.recall(
-        query_text=query,
-        query_type=SearchType.TRIPLET_COMPLETION,
-        datasets=[DATASET],
-    )
+    list -- callers (top_concepts) defensively parse triples/answer text.
+
+    On a fresh cognee install / cloud tenant, TRIPLET_COMPLETION can raise
+    NoDataError until the create_triplet_embeddings memify pipeline has run.
+    We catch that here and return [] so top_concepts falls back cleanly to
+    Gemini-direct concept extraction (see ingest.py)."""
+    try:
+        return await cognee.recall(
+            query_text=query,
+            query_type=SearchType.TRIPLET_COMPLETION,
+            datasets=[DATASET],
+        )
+    except Exception as e:  # noqa: BLE001
+        msg = str(e)
+        # NoDataError on fresh graph / triplet embeddings missing -> empty result
+        if "NoDataError" in type(e).__name__ or "triplet_embeddings" in msg or "TRIPLET_COMPLETION" in msg:
+            event(logger, "cognee.recall.no_triplets_yet", reason=msg[:120])
+            return []
+        raise
 
 
 async def top_concepts(item_text: str, k: int = 3) -> list[str]:
@@ -274,6 +287,17 @@ async def graph_stats() -> dict:
     graph = await get_graph_engine()
     nodes, edges = await graph.get_graph_data()
     return {"nodes": len(nodes), "edges": len(edges)}
+
+
+async def doctor_graph_snapshot() -> tuple[dict, list[dict]]:
+    """Stats + SUPERSEDES in one asyncio loop.
+
+    Calling ``asyncio.run`` twice in a row (separate ``run()`` invocations)
+    can leave Kuzu unable to re-lock its DB file on macOS.
+    """
+    stats = await graph_stats()
+    sups = await list_supersedes()
+    return stats, sups
 
 
 async def reset() -> None:

@@ -3,6 +3,6 @@ from palimpsest import config
 import google.generativeai as genai
 
 genai.configure(api_key=config.GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-3-pro")
+model = genai.GenerativeModel(config.GEMINI_NATIVE_MODEL)
 resp = model.generate_content("Say 'hello hackathon' and nothing else.")
 print(resp.text)
