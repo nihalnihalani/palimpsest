@@ -12,7 +12,7 @@ import time
 from . import cognee_io, gemini_io, redis_bus, wiki_io
 from .prompts import CONTRADICTION_CHECK, SYNTH_ANSWER
 
-CANNED_REWRITE_TRIGGERS: set[str] = set()  # populated from data/canned/*.json during seed
+CANNED_REWRITE_TRIGGERS: set[str] = {"con-001", "con-002", "con-003"}
 
 
 def _verdict_key(slug: str, item_text: str) -> str:

@@ -1,0 +1,1 @@
+{"id":"con-001","source":"arxiv","title":"Persistent agent memory considered harmful","body":"A new paper shows persistent memory across sessions causes catastrophic drift on multi-week tasks. The authors conclude agents should NOT persist state across sessions and recommend stateless designs.","url":"https://arxiv.org/abs/2026.contra1","ts":"2026-05-16T14:00:00"}
