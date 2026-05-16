@@ -7,6 +7,7 @@ cognee what it actually loaded, and writes the answer to docs/evidence/.
 """
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +25,10 @@ def probe() -> dict[str, Any]:
         get_vectordb_config,
     )
     cfg = get_vectordb_config()
+    cloud_url = (os.environ.get("COGNEE_SERVICE_URL") or "").strip()
     out: dict[str, Any] = {
+        "cognee_mode": "cloud" if cloud_url else "local",
+        "cognee_service_url": cloud_url or "(unset — running fully local)",
         "cognee_vector_provider": cfg.vector_db_provider,
         "cognee_vector_url": cfg.vector_db_url or "(unset)",
     }

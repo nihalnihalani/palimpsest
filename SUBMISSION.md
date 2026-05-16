@@ -248,9 +248,26 @@ CACHING=true                   # cognee 1.x session memory routing to Redis
 ```
 
 (`VECTOR_DB_PROVIDER` is intentionally unset — cognee 1.x defaults to
-LanceDB, which is what we use. The community Redis vector adapter is a
-separate package and not used in this submission; see
+LanceDB, which is what we use locally. The community Redis vector
+adapter is a separate package and not used in this submission; see
 `docs/plans/2026-05-17-full-hackathon-spec-design.md` for the rationale.)
+
+### Optional: Cognee Cloud
+
+To route all cognee operations (`remember` / `recall` / `improve` /
+`forget` / `visualize`) at a managed Cognee Cloud instance instead of
+local LanceDB + Kuzu, set these two env vars and Palimpsest's
+`cognee_io.run()` wrapper will call `cognee.serve(url, api_key)` once
+on first cognee call:
+
+```text
+COGNEE_SERVICE_URL=https://<tenant>.cognee.ai
+COGNEE_API_KEY=ck_...
+```
+
+Verify the switch worked: `wiki vector-smoke` will report
+`cognee mode: cloud` and print the service URL. Default (both unset) is
+fully local — what every test in this repo runs against.
 
 ## Demo
 

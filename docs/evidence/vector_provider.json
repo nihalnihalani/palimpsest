@@ -1,4 +1,6 @@
 {
+  "cognee_mode": "cloud",
+  "cognee_service_url": "https://fake-test.cognee.ai",
   "cognee_vector_provider": "lancedb",
   "cognee_vector_url": "/Users/nihalnihalani/Desktop/Github/wiki-hackathon/.venv/lib/python3.11/site-packages/cognee/.cognee_system/databases/cognee.lancedb",
   "supported_providers_extra": [],

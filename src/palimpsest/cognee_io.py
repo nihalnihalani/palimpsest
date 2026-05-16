@@ -1,6 +1,7 @@
 """Thin async wrapper over Cognee. All cognee calls live here so swaps stay local."""
 from __future__ import annotations
 import asyncio
+import os
 from typing import Any
 
 from . import config  # noqa: F401 — load .env + patch litellm
@@ -40,6 +41,37 @@ def _require_cognee() -> None:
         )
 
 DATASET = "wiki"
+
+
+# ---- Cognee Cloud bootstrap ------------------------------------------------
+# When COGNEE_SERVICE_URL is set, cognee.serve() redirects all V2 operations
+# (remember/recall/improve/forget/visualize) to the managed instance instead
+# of running locally. V1 operations (add/cognify/search) may still need the
+# local install — cognee's behavior on hybrid mode isn't formally documented.
+_cloud_initialized = False
+
+
+async def _init_cloud_if_configured() -> None:
+    """Idempotent: call cognee.serve(url, api_key) on first run if env vars are
+    set. Safe to call from every run() — short-circuits after the first call."""
+    global _cloud_initialized
+    if _cloud_initialized:
+        return
+    url = (os.environ.get("COGNEE_SERVICE_URL") or "").strip()
+    if not url:
+        _cloud_initialized = True  # local mode locked in
+        return
+    if not COGNEE_AVAILABLE:
+        return
+    key = (os.environ.get("COGNEE_API_KEY") or "").strip() or None
+    event(logger, "cognee.cloud.connecting", url=url[:80])
+    await cognee.serve(url=url, api_key=key)
+    event(logger, "cognee.cloud.connected", url=url[:80])
+    _cloud_initialized = True
+
+
+def is_cloud_mode() -> bool:
+    return bool((os.environ.get("COGNEE_SERVICE_URL") or "").strip())
 
 
 async def add(text: str, source: str) -> None:
@@ -205,6 +237,12 @@ async def reset() -> None:
     await cognee.prune.prune_system(graph=True, vector=True, metadata=True, cache=True)
 
 
+async def _with_cloud_init(coro):
+    """Wrap a coroutine so the cloud bootstrap fires once before it runs."""
+    await _init_cloud_if_configured()
+    return await coro
+
+
 def run(coro):
     """Synchronous entrypoint for Click commands."""
-    return asyncio.run(coro)
+    return asyncio.run(_with_cloud_init(coro))

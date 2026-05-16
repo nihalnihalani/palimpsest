@@ -369,6 +369,11 @@ def vector_smoke_cmd() -> None:
     from . import vector_probe
     payload = vector_probe.probe()
     p = vector_probe.write_evidence(payload)
+    mode = payload.get("cognee_mode", "local")
+    mode_color = "magenta" if mode == "cloud" else "cyan"
+    click.secho(f"cognee mode:              {mode}", bold=True, fg=mode_color)
+    if mode == "cloud":
+        click.echo(f"service url:              {payload['cognee_service_url']}")
     click.secho(f"resolved vector provider: {payload['cognee_vector_provider']}",
                 bold=True, fg="cyan")
     click.echo(f"cognee version:           {payload['cognee_version']}")
