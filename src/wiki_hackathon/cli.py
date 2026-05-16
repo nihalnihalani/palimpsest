@@ -137,5 +137,14 @@ def reset() -> None:
     click.echo("reset complete")
 
 
+# ---- dashboard ---------------------------------------------------------
+
+@cli.command()
+def dash() -> None:
+    """Live three-pane terminal dashboard."""
+    from . import dashboard  # lazy: pulls in rich + Cognee
+    dashboard.run()
+
+
 if __name__ == "__main__":
     cli()
