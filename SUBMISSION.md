@@ -254,20 +254,24 @@ adapter is a separate package and not used in this submission; see
 
 ### Optional: Cognee Cloud
 
-To route all cognee operations (`remember` / `recall` / `improve` /
-`forget` / `visualize`) at a managed Cognee Cloud instance instead of
-local LanceDB + Kuzu, set these two env vars and Palimpsest's
-`cognee_io.run()` wrapper will call `cognee.serve(url, api_key)` once
-on first cognee call:
+To route *all* cognee operations at a managed Cognee Cloud instance instead of
+the local LanceDB + Kuzu, set these two env vars:
 
 ```text
 COGNEE_SERVICE_URL=https://<tenant>.cognee.ai
 COGNEE_API_KEY=ck_...
 ```
 
+Palimpsest's `cognee_io.run()` wrapper calls `cognee.serve(url, api_key)` once
+on first cognee call; from then on every operation is routed.
+
+The wiki uses cognee's V2 API end-to-end (`remember` / `recall` for ingest +
+query; `SkillRunEntry` + `improve_skill` for the self-improvement loop), so the
+cloud route is end-to-end — no hybrid V1/V2 split.
+
 Verify the switch worked: `wiki vector-smoke` will report
-`cognee mode: cloud` and print the service URL. Default (both unset) is
-fully local — what every test in this repo runs against.
+`cognee mode: cloud` and print the service URL. Default (both unset) is fully
+local — what every test in this repo runs against.
 
 ## Demo
 
