@@ -47,3 +47,52 @@ def append_log(line: str) -> None:
 
 def list_concepts() -> list[str]:
     return sorted(p.stem for p in CONCEPTS_DIR.glob("*.md"))
+
+
+def find_citations_in_text(text: str) -> list[str]:
+    """Pull [[wikilinks]] out of an answer text. Returns sorted unique slugs."""
+    out = set()
+    for m in _WIKILINK_RE.finditer(text):
+        target = slugify(m.group(1).split("|")[0])
+        if target:
+            out.add(target)
+    return sorted(out)
+
+
+def write_exploration(question: str, answer: str,
+                      name: str | None = None,
+                      citations: list[str] | None = None,
+                      as_of: str | None = None) -> Path:
+    """Write a query exploration to wiki/explorations/<slug>.md.
+    Obsidian-friendly markdown with frontmatter. Returns the path."""
+    from .config import EXPLORATIONS_DIR
+    EXPLORATIONS_DIR.mkdir(parents=True, exist_ok=True)
+    slug = (name and slugify(name)) or slugify(question[:60]) or f"q-{int(time.time())}"
+    # Avoid clobbering: append -2, -3 if file exists
+    base = slug
+    i = 2
+    p = EXPLORATIONS_DIR / f"{slug}.md"
+    while p.exists():
+        slug = f"{base}-{i}"
+        p = EXPLORATIONS_DIR / f"{slug}.md"
+        i += 1
+
+    frontmatter = "---\n"
+    frontmatter += f"question: {question!r}\n"
+    frontmatter += f"asked_at: {int(time.time())}\n"
+    if as_of:
+        frontmatter += f"as_of: {as_of!r}\n"
+    if citations:
+        frontmatter += "citations:\n"
+        for c in citations:
+            frontmatter += f"  - {c}\n"
+    frontmatter += "---\n\n"
+
+    body = f"# {question}\n\n{answer.strip()}\n"
+    if citations:
+        body += "\n## Cited concepts\n"
+        for c in citations:
+            body += f"- [[{c}]]\n"
+
+    p.write_text(frontmatter + body, encoding="utf-8")
+    return p

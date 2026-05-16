@@ -208,6 +208,28 @@ def test_timemachine_parse_as_of() -> None:
     assert timemachine._parse_as_of("12345.5") == 12345.5
 
 
+def test_write_exploration(tmp_path, monkeypatch) -> None:
+    from wiki_hackathon import wiki_io, config
+    monkeypatch.setattr(config, "EXPLORATIONS_DIR", tmp_path)
+    p = wiki_io.write_exploration(
+        "What is X?", "X is [[foo]] and [[bar]].",
+        citations=["foo", "bar"])
+    assert p.exists()
+    text = p.read_text()
+    assert "[[foo]]" in text
+    assert "question:" in text
+    assert "asked_at:" in text
+
+
+def test_find_citations(monkeypatch) -> None:
+    from wiki_hackathon import wiki_io
+    answer = "See [[Agent Memory]] and [[context-window]] also [[foo|bar]]."
+    cits = wiki_io.find_citations_in_text(answer)
+    assert "agent-memory" in cits
+    assert "context-window" in cits
+    assert "foo" in cits  # alias form takes the LHS
+
+
 def test_lint_report_minimal(monkeypatch, tmp_path) -> None:
     # Stub Cognee calls so test runs without it
     monkeypatch.setattr(lint, "supersedes_summary", lambda: [])

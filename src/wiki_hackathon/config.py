@@ -24,11 +24,12 @@ DATASET = "wiki"
 WIKI_DIR = ROOT / "wiki"
 CONCEPTS_DIR = WIKI_DIR / "concepts"
 REPORTS_DIR = WIKI_DIR / "reports"
+EXPLORATIONS_DIR = WIKI_DIR / "explorations"
 LOG_FILE = WIKI_DIR / "log.md"
 CANNED_DIR = ROOT / "data" / "canned"
 SNAPSHOT_DIR = ROOT / "snapshot"
 
-for d in (CONCEPTS_DIR, REPORTS_DIR, SNAPSHOT_DIR):
+for d in (CONCEPTS_DIR, REPORTS_DIR, EXPLORATIONS_DIR, SNAPSHOT_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
 

@@ -63,19 +63,35 @@ def ingest(once: bool) -> None:
 @click.option("--as-of", default=None,
               help="Reconstruct wiki state at this point: 'now', 'now-5m', "
                    "'pre-ingest', 'first-rewrite', or epoch seconds.")
-def ask(question: str, as_of: str | None) -> None:
+@click.option("--save", "save", is_flag=True, default=False,
+              help="Write Q+A to wiki/explorations/ (Obsidian-visible).")
+@click.option("--name", default=None,
+              help="Override the exploration filename slug.")
+def ask(question: str, as_of: str | None, save: bool, name: str | None) -> None:
     """Ask the wiki a question, optionally as of a past time."""
     if as_of is None:
         from . import query as query_mod  # lazy: pulls in Cognee + Gemini
-        click.echo(query_mod.ask(question))
-        return
-    from . import timemachine  # lazy: pulls in Cognee + Gemini
-    result = timemachine.ask_as_of(question, as_of)
-    click.echo(
-        f"as of {result['as_of_pretty']} "
-        f"({len(result['concepts_snapshot'])} concept pages):\n"
-    )
-    click.echo(result["answer"])
+        answer = query_mod.ask(question)
+        click.echo(answer)
+        as_of_label = None
+    else:
+        from . import timemachine  # lazy: pulls in Cognee + Gemini
+        result = timemachine.ask_as_of(question, as_of)
+        click.echo(
+            f"as of {result['as_of_pretty']} "
+            f"({len(result['concepts_snapshot'])} concept pages):\n"
+        )
+        click.echo(result["answer"])
+        answer = result["answer"]
+        as_of_label = as_of
+
+    if save:
+        from . import wiki_io
+        citations = wiki_io.find_citations_in_text(answer)
+        p = wiki_io.write_exploration(question, answer,
+                                      name=name, citations=citations,
+                                      as_of=as_of_label)
+        click.secho(f"\nsaved → {p}", fg="green")
 
 
 @cli.group()
