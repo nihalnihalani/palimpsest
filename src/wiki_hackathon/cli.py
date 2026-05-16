@@ -191,6 +191,17 @@ def dash() -> None:
     dashboard.run()
 
 
+# ---- doctor ------------------------------------------------------------
+
+@cli.command()
+def doctor() -> None:
+    """One-shot diagnostic dump for triaging a stuck demo."""
+    from . import doctor as doctor_mod
+    failures = doctor_mod.run()
+    if failures:
+        raise SystemExit(1)
+
+
 # ---- eval --------------------------------------------------------------
 
 @cli.command(name="eval")
