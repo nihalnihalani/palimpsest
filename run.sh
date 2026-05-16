@@ -37,22 +37,40 @@ require_env_key() {
 # --- subcommands ---
 cmd_setup() {
     step "setup"
-    require_cmd docker
     require_cmd python3.11
 
-    if docker compose ps --status running 2>/dev/null | grep -q wiki-redis; then
-        ok "redis already up"
+    # Redis runtime: cloud (URL points off-host) OR local (docker / brew).
+    # We detect by inspecting REDIS_URL in .env, if present.
+    local redis_url=""
+    if [ -f .env ]; then
+        redis_url=$(grep -E "^REDIS_URL=" .env | head -1 | cut -d= -f2-)
+    fi
+    if echo "$redis_url" | grep -qE "@.+\.(com|net|io|cloud)"; then
+        ok "REDIS_URL points to remote/cloud — skipping local Redis bringup"
+    elif command -v redis-stack-server >/dev/null; then
+        if pgrep -f "redis-stack-server" >/dev/null; then
+            ok "redis-stack-server already running (brew)"
+        else
+            info "starting redis-stack-server in background..."
+            redis-stack-server --daemonize yes
+        fi
+    elif command -v docker >/dev/null && docker info >/dev/null 2>&1; then
+        if docker compose ps --status running 2>/dev/null | grep -q wiki-redis; then
+            ok "redis already up (docker)"
+        else
+            info "starting docker compose..."
+            docker compose up -d
+            for i in $(seq 1 10); do
+                if docker exec wiki-redis redis-cli PING 2>/dev/null | grep -q PONG; then
+                    ok "redis PONG"
+                    break
+                fi
+                sleep 1
+            done
+        fi
     else
-        info "starting docker compose..."
-        docker compose up -d
-        # wait up to 10s for PING
-        for i in $(seq 1 10); do
-            if docker exec wiki-redis redis-cli PING 2>/dev/null | grep -q PONG; then
-                ok "redis PONG"
-                break
-            fi
-            sleep 1
-        done
+        warn "no local Redis available (neither redis-stack-server nor docker)."
+        warn "either install one OR set REDIS_URL in .env to a cloud Redis URL."
     fi
 
     if have_venv; then

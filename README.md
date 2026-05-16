@@ -17,16 +17,24 @@ Built for the AI-Memory Hackathon. Stack: **Cognee 0.5.8 · Redis Stack · Gemin
 One command does everything:
 
 ```bash
-./run.sh setup     # docker up + venv + .env scaffold
-# edit .env to set GEMINI_API_KEY
+./run.sh setup     # venv + Redis bringup + .env scaffold (auto-detects mode)
+# edit .env: set GEMINI_API_KEY and REDIS_URL
 ./run.sh all       # doctor → verify → seed → demo
 ```
 
-Subcommands:
+### Pick a Redis runtime
+
+You need **Redis Stack** (Redis + RedisJSON modules). Pick one:
+
+- **Redis Cloud free tier** (no install): sign up at [redis.com](https://redis.com), create a free database with the JSON module enabled, copy the connection URL into `REDIS_URL=` in `.env`. `./run.sh setup` auto-detects cloud URLs and skips local bringup.
+- **Homebrew** (no Docker): `brew install redis-stack-server` then `./run.sh setup` starts it for you.
+- **Docker**: `docker compose up -d` works if Docker Desktop is running. `./run.sh setup` will use it if available.
+
+### Subcommands
 
 | Cmd | What |
 |---|---|
-| `setup` | docker up + venv + pip install + .env scaffold |
+| `setup` | venv + pip install + Redis bringup (auto-detected) + .env scaffold |
 | `doctor` | Diagnostic dump |
 | `verify` | 9-step live smoke (`scripts/verify_live.sh`) |
 | `seed` | `wiki reset && wiki seed && wiki load-baseline` |

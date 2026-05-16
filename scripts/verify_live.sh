@@ -15,10 +15,45 @@ log_fail() { printf "  \033[31m✗\033[0m %s\n" "$1"; FAIL=$((FAIL+1)); }
 section() { printf "\n\033[1m== %s ==\033[0m\n" "$1"; }
 
 section "1. Redis reachable"
-if docker exec wiki-redis redis-cli PING 2>/dev/null | grep -q PONG; then
-    log_pass "Redis container PONG"
+# Use Python so it works against docker, brew, OR Redis Cloud (any REDIS_URL).
+REDIS_PING=$(python -c "
+import os, sys
+from dotenv import load_dotenv
+load_dotenv()
+import redis
+try:
+    r = redis.Redis.from_url(os.environ.get('REDIS_URL','redis://localhost:6379'),
+                             decode_responses=True, socket_connect_timeout=3)
+    print('PONG' if r.ping() else 'FAIL')
+except Exception as e:
+    print(f'FAIL: {e}')
+    sys.exit(1)
+" 2>&1)
+if echo "$REDIS_PING" | grep -q "^PONG"; then
+    log_pass "Redis PONG ($REDIS_URL_HINT)"
 else
-    log_fail "Redis container not responding — run: docker compose up -d"
+    log_fail "Redis not responding: $REDIS_PING"
+    log_fail "Set REDIS_URL in .env to a working endpoint (local or cloud)"
+    exit 1
+fi
+# Verify RedisJSON module is loaded (required for our wiki:concept:* state)
+JSON_OK=$(python -c "
+import os, redis
+from dotenv import load_dotenv
+load_dotenv()
+r = redis.Redis.from_url(os.environ['REDIS_URL'], decode_responses=True)
+try:
+    r.json().set('_probe', '$', {'ok': True})
+    r.delete('_probe')
+    print('OK')
+except Exception as e:
+    print(f'FAIL: {e}')
+" 2>&1)
+if echo "$JSON_OK" | grep -q "^OK"; then
+    log_pass "RedisJSON module present"
+else
+    log_fail "RedisJSON unavailable: $JSON_OK"
+    log_fail "You need Redis Stack (not plain Redis). For cloud, ensure RedisJSON is enabled."
     exit 1
 fi
 
