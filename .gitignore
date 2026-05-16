@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.cognee_system/
+.data_storage/
+snapshot/*.tar.gz
+wiki/concepts/*.md
+wiki/log.md
+wiki/reports/*.md
+!wiki/.gitkeep
