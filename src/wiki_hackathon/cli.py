@@ -339,5 +339,27 @@ def eval_cmd() -> None:
     click.echo(f"Missing: {r['missing']}")
 
 
+# ---- chat --------------------------------------------------------------
+
+@cli.command()
+@click.option("--resume", default=None,
+              help="Resume a session by id, unique prefix, or 'latest'.")
+@click.option("--list", "list_sessions_flag", is_flag=True,
+              help="List all chat sessions and exit.")
+@click.option("--delete", default=None,
+              help="Delete a session by id or unique prefix and exit.")
+def chat(resume: str | None, list_sessions_flag: bool,
+         delete: str | None) -> None:
+    """Interactive multi-turn chat over the wiki."""
+    from . import chat as chat_mod
+    if list_sessions_flag:
+        chat_mod.list_sessions()
+        return
+    if delete:
+        chat_mod.delete_session(delete)
+        return
+    chat_mod.start_chat(resume=resume)
+
+
 if __name__ == "__main__":
     cli()

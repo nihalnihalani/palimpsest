@@ -260,6 +260,57 @@ def test_fix_broken_wikilinks(tmp_path, monkeypatch) -> None:
     assert "nonexistent-page" in (tmp_path / "bar.md").read_text()
 
 
+def test_chat_session_roundtrip(tmp_path, monkeypatch) -> None:
+    from wiki_hackathon import chat_session
+    monkeypatch.setattr(chat_session, "CHATS_DIR", tmp_path)
+    s = chat_session.ChatSession.new(title="hello")
+    s.append("user", "first question")
+    s.append("model", "first answer")
+    p = s.save()
+    assert p.exists()
+    loaded = chat_session.ChatSession.load(s.id)
+    assert loaded.title == "hello"
+    assert len(loaded.messages) == 2
+    assert loaded.messages[0]["content"] == "first question"
+
+
+def test_chat_session_listing(tmp_path, monkeypatch) -> None:
+    from wiki_hackathon import chat_session
+    import time
+    monkeypatch.setattr(chat_session, "CHATS_DIR", tmp_path)
+    s1 = chat_session.ChatSession.new("first")
+    s1.save()
+    time.sleep(0.01)
+    s2 = chat_session.ChatSession.new("second")
+    s2.save()
+    listing = chat_session.list_all()
+    assert len(listing) == 2
+    # newest-first
+    assert listing[0].id == s2.id
+
+
+def test_chat_session_prefix_resolve(tmp_path, monkeypatch) -> None:
+    from wiki_hackathon import chat_session
+    monkeypatch.setattr(chat_session, "CHATS_DIR", tmp_path)
+    s = chat_session.ChatSession.new("p")
+    s.save()
+    resolved = chat_session.resolve_id(s.id[:8])
+    assert resolved == s.id
+
+
+def test_chat_transcript_md(tmp_path, monkeypatch) -> None:
+    from wiki_hackathon import chat_session
+    monkeypatch.setattr(chat_session, "CHATS_DIR", tmp_path)
+    s = chat_session.ChatSession.new("titled")
+    s.append("user", "hello?")
+    s.append("model", "hi there")
+    md = s.transcript_md()
+    assert "# titled" in md
+    assert "User" in md
+    assert "Wiki" in md
+    assert "hello?" in md
+
+
 def test_lint_report_with_fix_section(tmp_path, monkeypatch) -> None:
     from wiki_hackathon import lint
     monkeypatch.setattr(lint, "supersedes_summary", lambda: [])
