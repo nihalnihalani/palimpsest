@@ -220,6 +220,100 @@ def doctor() -> None:
 
 # ---- eval --------------------------------------------------------------
 
+@cli.command(name="list")
+def list_cmd() -> None:
+    """List all concept pages with metadata (last modified, size, citations)."""
+    from rich.console import Console
+    from rich.table import Table
+    import time
+    from .config import CONCEPTS_DIR
+    from . import wiki_io
+
+    console = Console()
+    pages = sorted(CONCEPTS_DIR.glob("*.md"))
+    if not pages:
+        console.print("[yellow]no concept pages yet. Run `wiki seed`.[/yellow]")
+        return
+
+    t = Table(title=f"Concept pages ({len(pages)})", show_lines=False)
+    t.add_column("slug", style="bold cyan")
+    t.add_column("size", justify="right")
+    t.add_column("modified", style="dim")
+    t.add_column("wikilinks", justify="right")
+    t.add_column("sources", justify="right", style="dim")
+
+    for p in pages:
+        text = p.read_text(encoding="utf-8")
+        wikilinks = len(wiki_io.find_citations_in_text(text))
+        # count `sources:` items in frontmatter (best effort)
+        sources = 0
+        for ln in text.splitlines():
+            if ln.startswith("  - http") or ln.startswith("  - baseline"):
+                sources += 1
+        modified = time.strftime("%H:%M:%S",
+                                 time.localtime(p.stat().st_mtime))
+        t.add_row(p.stem, f"{p.stat().st_size}", modified,
+                  str(wikilinks), str(sources))
+
+    console.print(t)
+
+
+@cli.command()
+def status() -> None:
+    """Show KB stats: pages, edges, supersedes, stream length, recent log entries."""
+    from rich.console import Console
+    from rich.table import Table
+    from rich.panel import Panel
+    from .config import (CONCEPTS_DIR, REPORTS_DIR, EXPLORATIONS_DIR,
+                         LOG_FILE)
+    from . import redis_bus, cognee_io
+
+    console = Console()
+
+    # KB stats table
+    pages = list(CONCEPTS_DIR.glob("*.md"))
+    reports = list(REPORTS_DIR.glob("lint-*.md"))
+    explorations = list(EXPLORATIONS_DIR.glob("*.md")) if EXPLORATIONS_DIR.exists() else []
+
+    stats_t = Table(title="Wiki state", show_lines=False)
+    stats_t.add_column("metric", style="bold")
+    stats_t.add_column("value", justify="right", style="cyan")
+    stats_t.add_row("concept pages", str(len(pages)))
+    stats_t.add_row("lint reports", str(len(reports)))
+    stats_t.add_row("explorations", str(len(explorations)))
+
+    # Cognee graph stats (defensively — may fail if Cognee isn't reachable)
+    try:
+        gs = cognee_io.run(cognee_io.graph_stats())
+        sups = cognee_io.run(cognee_io.list_supersedes())
+        stats_t.add_row("graph nodes", str(gs["nodes"]))
+        stats_t.add_row("graph edges", str(gs["edges"]))
+        stats_t.add_row("SUPERSEDES edges", str(len(sups)))
+    except Exception as e:
+        stats_t.add_row("[red]Cognee[/red]", f"[red]error: {type(e).__name__}[/red]")
+
+    # Redis stats (defensively)
+    try:
+        m = redis_bus.metrics()
+        stats_t.add_row("firehose stream length", str(m["stream_len"]))
+        stats_t.add_row("evolution events", str(m["evolution_len"]))
+        stats_t.add_row("verdict cache entries", str(m["verdict_cache_keys"]))
+    except Exception as e:
+        stats_t.add_row("[red]Redis[/red]", f"[red]error: {type(e).__name__}[/red]")
+
+    console.print(stats_t)
+
+    # Recent log entries
+    if LOG_FILE.exists():
+        lines = LOG_FILE.read_text(encoding="utf-8").splitlines()[-8:]
+        if lines:
+            console.print(Panel("\n".join(lines),
+                                title="Recent activity (wiki/log.md)",
+                                border_style="dim"))
+    else:
+        console.print("[dim]wiki/log.md is empty[/dim]")
+
+
 @cli.command(name="eval")
 def eval_cmd() -> None:
     """Held-out evaluation: shows score and citations."""
