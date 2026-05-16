@@ -146,5 +146,23 @@ def dash() -> None:
     dashboard.run()
 
 
+# ---- eval --------------------------------------------------------------
+
+@cli.command(name="eval")
+def eval_cmd() -> None:
+    """Held-out evaluation: shows score and citations."""
+    from . import eval as eval_mod  # lazy: pulls in query + Gemini
+    r = eval_mod.run()
+    click.secho(f"\nQ: {r['question']}\n", bold=True)
+    click.echo(r["answer"])
+    click.secho(
+        f"\nScore: {r['score']}/{r['max']}",
+        bold=True,
+        fg="green" if r["score"] == r["max"] else "yellow",
+    )
+    click.echo(f"Found:   {r['found']}")
+    click.echo(f"Missing: {r['missing']}")
+
+
 if __name__ == "__main__":
     cli()
