@@ -373,11 +373,20 @@ def vector_smoke_cmd() -> None:
     mode_color = "magenta" if mode == "cloud" else "cyan"
     click.secho(f"cognee mode:              {mode}", bold=True, fg=mode_color)
     if mode == "cloud":
-        click.echo(f"service url:              {payload['cognee_service_url']}")
+        click.echo(f"cognee service url:       {payload['cognee_service_url']}")
     click.secho(f"resolved vector provider: {payload['cognee_vector_provider']}",
                 bold=True, fg="cyan")
     click.echo(f"cognee version:           {payload['cognee_version']}")
     click.echo(f"vector url:               {payload['cognee_vector_url']}")
+
+    redis_mode = payload.get("redis_mode", "?")
+    redis_color = "magenta" if redis_mode == "remote" else "cyan"
+    click.secho(f"redis mode:               {redis_mode}",
+                bold=True, fg=redis_color)
+    click.echo(f"redis host:               {payload.get('redis_host')}:{payload.get('redis_port')}"
+               f"{' (TLS)' if payload.get('redis_tls') else ''}")
+    if payload.get("redis_vendor_hint") == "redis_cloud":
+        click.echo(f"redis vendor:             Redis Cloud (recognised host suffix)")
     click.echo(f"redis in use for:")
     for use in payload["redis_in_use_for"]:
         click.echo(f"  - {use}")

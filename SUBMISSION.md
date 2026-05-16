@@ -252,6 +252,34 @@ LanceDB, which is what we use locally. The community Redis vector
 adapter is a separate package and not used in this submission; see
 `docs/plans/2026-05-17-full-hackathon-spec-design.md` for the rationale.)
 
+### Redis: local vs Redis Cloud
+
+`REDIS_URL` accepts any Redis-compatible endpoint — local or cloud — with no
+code changes:
+
+```text
+# Local docker (default):
+REDIS_URL=redis://localhost:6379
+
+# Local brew (after `brew install redis-stack-server`):
+REDIS_URL=redis://localhost:6379
+
+# Redis Cloud (Essentials free tier has RedisJSON + Search modules pre-enabled):
+REDIS_URL=rediss://default:<password>@<host>.cloud.redislabs.com:<port>
+```
+
+To switch to Redis Cloud:
+1. Sign up at https://redis.io/cloud (free tier, no credit card)
+2. Create a database with the `RedisJSON` + `RediSearch` modules enabled (default on Essentials)
+3. Copy the connection URL from the database's "Connect" tab
+4. Paste it as `REDIS_URL` in `.env` — use `rediss://` for TLS (recommended)
+
+Verify the switch: `wiki vector-smoke` prints `redis mode: remote` and the
+host. `run.sh setup` auto-detects cloud URLs and skips the local Redis
+bringup. Both modes are functionally identical for this project — all Redis
+features used (Streams, RedisJSON, Pub/Sub, RediSearch via RedisVL
+SemanticCache) are available on the free tier.
+
 ### Optional: Cognee Cloud
 
 To route *all* cognee operations at a managed Cognee Cloud instance instead of

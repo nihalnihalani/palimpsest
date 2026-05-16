@@ -27,6 +27,43 @@ def client() -> redis.Redis:
     return _r
 
 
+# ---- Mode detection ------------------------------------------------------
+# Mirrors cognee_io.is_cloud_mode(). Reports whether REDIS_URL points at a
+# local Redis (docker/brew) or a remote one (Redis Cloud, self-hosted server,
+# or any non-localhost endpoint). Used by `wiki vector-smoke` to surface the
+# resolved deployment shape.
+
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"}
+
+
+def redis_info() -> dict:
+    """Parse REDIS_URL into a mode summary without connecting. Safe for
+    import-time inspection."""
+    from urllib.parse import urlparse
+    u = urlparse(REDIS_URL)
+    host = (u.hostname or "").lower()
+    port = u.port or (6380 if u.scheme == "rediss" else 6379)
+    is_local = host in _LOCAL_HOSTS or host == ""
+    # Recognise the well-known Redis Cloud host suffixes (just for the human-
+    # readable hint; functionally we still treat anything non-local as remote)
+    cloud_suffixes = (".redislabs.com", ".redns.redis-cloud.com", ".rediscloud.com")
+    is_cloud = any(host.endswith(s) for s in cloud_suffixes)
+    return {
+        "mode": "local" if is_local else "remote",
+        "vendor_hint": "redis_cloud" if is_cloud else (
+            "local" if is_local else "remote_non_cloud"),
+        "host": host or "(missing)",
+        "port": port,
+        "tls": u.scheme == "rediss",
+        "url_scheme": u.scheme,
+    }
+
+
+def is_remote() -> bool:
+    """True if REDIS_URL points at a non-localhost endpoint (cloud or self-hosted server)."""
+    return redis_info()["mode"] == "remote"
+
+
 def ensure_group() -> None:
     try:
         client().xgroup_create(STREAM, GROUP, id="$", mkstream=True)

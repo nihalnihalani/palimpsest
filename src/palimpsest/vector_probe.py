@@ -26,11 +26,18 @@ def probe() -> dict[str, Any]:
     )
     cfg = get_vectordb_config()
     cloud_url = (os.environ.get("COGNEE_SERVICE_URL") or "").strip()
+    from . import redis_bus
+    r_info = redis_bus.redis_info()
     out: dict[str, Any] = {
         "cognee_mode": "cloud" if cloud_url else "local",
         "cognee_service_url": cloud_url or "(unset — running fully local)",
         "cognee_vector_provider": cfg.vector_db_provider,
         "cognee_vector_url": cfg.vector_db_url or "(unset)",
+        "redis_mode": r_info["mode"],
+        "redis_host": r_info["host"],
+        "redis_port": r_info["port"],
+        "redis_tls": r_info["tls"],
+        "redis_vendor_hint": r_info["vendor_hint"],
     }
     try:
         from cognee.infrastructure.databases.vector.supported_databases import (
