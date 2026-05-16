@@ -94,5 +94,17 @@ def graph_stats() -> None:
     click.echo(f"nodes={s['nodes']}  edges={s['edges']}")
 
 
+# ---- lint --------------------------------------------------------------
+
+@cli.command()
+def lint() -> None:
+    """Run structural + knowledge lint, write report."""
+    from . import lint as lint_mod  # lazy: pulls in Cognee
+    p = lint_mod.write_report()
+    click.echo(f"wrote {p}")
+    click.echo("--- preview ---")
+    click.echo(p.read_text())
+
+
 if __name__ == "__main__":
     cli()
