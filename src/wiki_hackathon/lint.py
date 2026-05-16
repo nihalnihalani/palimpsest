@@ -56,7 +56,12 @@ def fix_broken_wikilinks() -> dict:
                 stripped += 1
                 details.append(f"{p.stem}: stripped [[{label}]]")
         if new_text != text:
-            p.write_text(new_text, encoding="utf-8")
+            # Atomic write: tmp file in same dir, then os.replace.
+            # Survives Ctrl-C / kill mid-pass without partial-file corruption.
+            tmp = p.with_suffix(p.suffix + ".tmp")
+            tmp.write_text(new_text, encoding="utf-8")
+            import os
+            os.replace(tmp, p)
 
     return {"fixed": fixed, "stripped": stripped, "details": details}
 

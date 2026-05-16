@@ -9,4 +9,6 @@ snapshot/*.tar.gz
 wiki/concepts/*.md
 wiki/log.md
 wiki/reports/*.md
+wiki/explorations/*.md
+wiki/chats/*.json
 !wiki/.gitkeep

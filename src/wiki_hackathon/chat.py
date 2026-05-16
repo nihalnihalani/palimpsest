@@ -13,22 +13,15 @@ from .logs import get_logger, event
 logger = get_logger(__name__)
 
 SYSTEM_PRIMER = """\
-You are the wiki assistant. The user is exploring an LLM-maintained wiki on
-'AI agents in 2026'. You have access to its concept pages via the `read_concept`
-tool conceptually — when you need wiki content, you should reference it by slug.
+You are the wiki assistant for an LLM-maintained wiki on 'AI agents in 2026'.
 
-Be concise (≤6 sentences per turn unless the user asks for depth). Cite concept
-pages in [[wikilinks]] when you use them. If the user asks something the wiki
-can't answer, say so plainly.
+Each user message will include a "WIKI SNIPPETS" section containing the
+current contents of relevant concept pages. Use those snippets as ground
+truth; do not invent tools or function calls — there are no tools available.
 
-The user can type these slash commands:
-  /help    show all commands
-  /status  show KB stats
-  /list    list concept pages
-  /lint    run a lint pass
-  /save    export this transcript to wiki/explorations/
-  /clear   start a fresh session (current stays on disk)
-  /exit    leave (Ctrl-D also works)
+Be concise (≤6 sentences per turn unless the user asks for depth). When you
+reference a concept covered by a snippet, cite it as [[slug-name]]. If the
+provided snippets don't cover the question, say so plainly instead of guessing.
 """
 
 SLASH_HELP = """\
@@ -70,26 +63,34 @@ def _send_to_gemini(history: list[dict], user_msg: str) -> str:
     return resp.text.strip()
 
 
+def _shell_out(cmd: list[str], console: Console) -> None:
+    """Run a `wiki ...` subcommand in a subprocess so we don't re-enter the
+    event loop from inside the chat REPL (Cognee's asyncio.run wrapper would
+    explode if the chat process already has a loop). 1-2s startup cost; safe."""
+    import subprocess
+    try:
+        result = subprocess.run(["wiki", *cmd], capture_output=True,
+                                text=True, timeout=60)
+        if result.stdout:
+            console.print(result.stdout.rstrip())
+        if result.stderr:
+            console.print(f"[dim red]{result.stderr.rstrip()}[/dim red]")
+    except subprocess.TimeoutExpired:
+        console.print(f"[red]`wiki {' '.join(cmd)}` timed out after 60s[/red]")
+    except FileNotFoundError:
+        console.print("[red]wiki CLI not on PATH (forgot `source .venv/bin/activate`?)[/red]")
+
+
 def _slash_status(console: Console) -> None:
-    from .cli import status  # lazy
-    from click.testing import CliRunner
-    r = CliRunner().invoke(status)
-    console.print(r.output)
+    _shell_out(["status"], console)
 
 
 def _slash_list(console: Console) -> None:
-    from .cli import list_cmd
-    from click.testing import CliRunner
-    r = CliRunner().invoke(list_cmd)
-    console.print(r.output)
+    _shell_out(["list"], console)
 
 
 def _slash_lint(console: Console) -> None:
-    from . import lint as lint_mod
-    p = lint_mod.write_report()
-    console.print(f"[green]wrote {p}[/green]")
-    head = p.read_text(encoding="utf-8").splitlines()[:14]
-    console.print("\n".join(head))
+    _shell_out(["lint"], console)
 
 
 def _slash_save(session: chat_session.ChatSession, name: Optional[str],
@@ -194,6 +195,15 @@ def list_sessions() -> None:
 
 
 def delete_session(prefix: str) -> None:
-    sid = chat_session.resolve_id(prefix)
+    console = Console()
+    try:
+        sid = chat_session.resolve_id(prefix)
+    except FileNotFoundError as e:
+        console.print(f"[red]{e}[/red]")
+        return
+    except ValueError as e:
+        # Ambiguous prefix — show what matched so the user can pick.
+        console.print(f"[yellow]{e}[/yellow]")
+        return
     chat_session.delete(sid)
-    Console().print(f"[green]deleted {sid}[/green]")
+    console.print(f"[green]deleted {sid}[/green]")

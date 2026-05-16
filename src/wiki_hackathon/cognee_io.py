@@ -8,17 +8,36 @@ from .logs import get_logger, event
 
 logger = get_logger(__name__)
 
-import cognee
-from cognee.api.v1.search import SearchType
-
-# Skip the connectivity probe that can silently hang on first call
+# Defensive top-level imports: a broken cognee install (e.g., transitive dep
+# breakage like mistralai 2.x) shouldn't crash the entire CLI. We capture the
+# import error and fail loudly only when a function that actually needs cognee
+# is called.
+COGNEE_AVAILABLE = True
+_COGNEE_IMPORT_ERROR: Exception | None = None
 try:
-    import cognee.modules.pipelines.layers.setup_and_check_environment as _env
-    _env._first_run_done = True
-except Exception:
-    pass
+    import cognee
+    from cognee.api.v1.search import SearchType
+    try:
+        import cognee.modules.pipelines.layers.setup_and_check_environment as _env
+        _env._first_run_done = True
+    except Exception:
+        pass
+    from cognee.infrastructure.databases.graph import get_graph_engine
+except Exception as _e:  # noqa: BLE001
+    COGNEE_AVAILABLE = False
+    _COGNEE_IMPORT_ERROR = _e
+    cognee = None  # type: ignore[assignment]
+    SearchType = None  # type: ignore[assignment]
+    get_graph_engine = None  # type: ignore[assignment]
+    logger.error(f"cognee import failed at startup: {type(_e).__name__}: {_e}")
 
-from cognee.infrastructure.databases.graph import get_graph_engine
+
+def _require_cognee() -> None:
+    if not COGNEE_AVAILABLE:
+        raise RuntimeError(
+            f"cognee is not importable: {type(_COGNEE_IMPORT_ERROR).__name__}: "
+            f"{_COGNEE_IMPORT_ERROR}. Run `pip install -e .` to repair the venv."
+        )
 
 DATASET = "wiki"
 
