@@ -42,6 +42,7 @@ def process_one(item: dict[str, Any]) -> dict[str, Any]:
             item.get("title", ""), item.get("body", ""))
 
     touched: list[str] = []
+    self_corrected: list[str] = []
     for name in concepts:
         slug = wiki_io.slugify(name)
         if not slug:
@@ -52,6 +53,7 @@ def process_one(item: dict[str, Any]) -> dict[str, Any]:
         verdict = query.check_contradiction(slug, text, item_id=item_id)
         if query.self_improve(slug, verdict, source):
             touched.append(slug)
+            self_corrected.append(slug)
             continue
 
         # Otherwise, normal concept render (could be initial or refinement).
@@ -66,8 +68,6 @@ def process_one(item: dict[str, Any]) -> dict[str, Any]:
         redis_bus.rewrite_concept(slug, page, reason=None, source=source)
         touched.append(slug)
 
-    self_corrected = [s for s in touched
-                      if query.check_contradiction(s, text, item_id).get("conflict")]
     wiki_io.append_log(
         f"[{int(time.time())}] INGEST {item_id} → {touched} "
         f"(self_corrected={self_corrected})"

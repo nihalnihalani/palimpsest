@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 
 from . import cognee_io, gemini_io, redis_bus, wiki_io
-from .prompts import CONTRADICTION_CHECK, SYNTH_ANSWER
+from .prompts import CONTRADICTION_CHECK, CONCEPT_RENDER, SYNTH_ANSWER
 
 CANNED_REWRITE_TRIGGERS: set[str] = {"con-001", "con-002", "con-003"}
 
@@ -43,6 +43,25 @@ def check_contradiction(slug: str, item_text: str,
         CONTRADICTION_CHECK.format(slug=slug, page=page, item=item_text))
     if forced:
         verdict["conflict"] = True
+        # When Gemini honestly returned conflict=false, rewrite is empty.
+        # Synthesize one so self_improve actually fires the SUPERSEDES write.
+        if not verdict.get("rewrite", "").strip():
+            verdict["rewrite"] = gemini_io.generate_text(
+                CONCEPT_RENDER.format(
+                    title=slug.replace("-", " ").title(),
+                    existing=page,
+                    source="contradiction",
+                    item_title="(injected contradiction)",
+                    item_body=item_text,
+                    item_url="",
+                )
+            )
+            if not verdict.get("old_claim"):
+                verdict["old_claim"] = page[:200]
+            if not verdict.get("new_claim"):
+                verdict["new_claim"] = item_text[:200]
+            if not verdict.get("evidence"):
+                verdict["evidence"] = "forced override (canned contradiction)"
     redis_bus.verdict_set(key, verdict, ttl_sec=600)
     return verdict
 
