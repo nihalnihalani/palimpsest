@@ -13,7 +13,8 @@ from .prompts import EXTRACT_CONCEPTS
 
 logger = get_logger(__name__)
 
-_MODEL_NAME = "gemini-3-pro"
+import os
+_MODEL_NAME = os.environ.get("GEMINI_TEXT_MODEL", "gemini-3-pro-preview")
 _configured = False
 
 

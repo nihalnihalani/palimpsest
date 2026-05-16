@@ -43,8 +43,9 @@ def patch_litellm_for_gemini3() -> None:
         import litellm  # type: ignore
     except ImportError:
         return
-    name = "gemini/gemini-3-pro"
-    if name not in getattr(litellm, "model_cost", {}):
+    for name in ("gemini/gemini-3-pro", "gemini/gemini-3-pro-preview"):
+        if name in getattr(litellm, "model_cost", {}):
+            continue
         litellm.register_model(  # type: ignore[attr-defined]
             {
                 name: {
@@ -63,3 +64,10 @@ def patch_litellm_for_gemini3() -> None:
 
 
 patch_litellm_for_gemini3()
+
+# Register the Cognee Redis vector adapter (community package). Side-effect
+# import — no register() function, the module body calls use_vector_adapter().
+try:
+    import cognee_community_vector_adapter_redis.register  # noqa: F401
+except ImportError:
+    pass

@@ -131,12 +131,19 @@ async def search_completion(query: str) -> str:
 
 async def search_insights(query: str) -> list[Any]:
     """Cognee V2: recall() with TRIPLET_COMPLETION. Returns the raw response
-    list — callers (top_concepts) defensively parse triples/answer text."""
-    return await cognee.recall(
-        query_text=query,
-        query_type=SearchType.TRIPLET_COMPLETION,
-        datasets=[DATASET],
-    )
+    list — callers (top_concepts) defensively parse triples/answer text.
+    Cognee raises NoDataError when the triplet-embeddings memify pipeline
+    hasn't been run — return [] so the Gemini fallback in
+    ingest.process_one takes over."""
+    try:
+        return await cognee.recall(
+            query_text=query,
+            query_type=SearchType.TRIPLET_COMPLETION,
+            datasets=[DATASET],
+        )
+    except Exception as e:
+        event(logger, "cognee.search_insights.fallback", reason=str(e)[:120])
+        return []
 
 
 async def top_concepts(item_text: str, k: int = 3) -> list[str]:
