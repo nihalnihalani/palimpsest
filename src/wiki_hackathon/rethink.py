@@ -29,7 +29,10 @@ import json
 from typing import Any
 
 from . import cognee_io, gemini_io
+from .logs import get_logger, event
 from .prompts import RETHINK
+
+logger = get_logger(__name__)
 
 
 TOP_N_ENTITIES = 8
@@ -104,6 +107,8 @@ async def _manual_rethink() -> dict:
 
     for nid, props, nbh in top:
         label = _entity_label(nid, props)
+        event(logger, "rethink.entity_inspected", label=label,
+              node=str(nid)[:32], neighbors=len(nbh))
         nbh_text = _format_neighborhood(nbh)
         result = _ask_gemini_for_entity(label, nbh_text)
 
@@ -127,6 +132,8 @@ async def _manual_rethink() -> dict:
                 dst = nid
             try:
                 await cognee_io.write_inferred_edge(src, dst, rel, reason)
+                event(logger, "rethink.inferred_edge", src=src[:24],
+                      dst=dst[:24], rel=rel, reason=reason[:40])
                 inferred_total += 1
                 details.append(
                     f"{label}: {src[:24]} -[{rel}]-> {dst[:24]} ({reason[:60]})"

@@ -4,6 +4,9 @@ import asyncio
 from typing import Any
 
 from . import config  # noqa: F401 — load .env + patch litellm
+from .logs import get_logger, event
+
+logger = get_logger(__name__)
 
 import cognee
 from cognee.api.v1.search import SearchType
@@ -21,22 +24,29 @@ DATASET = "wiki"
 
 
 async def add(text: str, source: str) -> None:
+    event(logger, "cognee.add.start", chars=len(text), source=source)
     await cognee.add(text, dataset_name=DATASET, node_set=[f"source:{source}"])
+    event(logger, "cognee.add.done", source=source)
 
 
 async def cognify() -> None:
+    event(logger, "cognee.cognify.start")
     await cognee.cognify(datasets=[DATASET])
+    event(logger, "cognee.cognify.done")
 
 
 async def search_completion(query: str) -> str:
     # Cognee 0.5.8: search uses query_type= and datasets= (renamed from
     # search_type= / dataset_names= in earlier versions).
+    event(logger, "cognee.search_completion.start", chars=len(query))
     resp = await cognee.search(
         query_text=query,
         query_type=SearchType.GRAPH_COMPLETION,
         datasets=[DATASET],
     )
-    return str(resp)
+    text = str(resp)
+    event(logger, "cognee.search_completion.done", chars=len(text))
+    return text
 
 
 async def search_insights(query: str) -> list[Any]:
@@ -82,6 +92,8 @@ async def write_supersedes_edge(old_claim: str, new_claim: str,
         relationship_name="SUPERSEDES",
         properties={"source": source, "reason": reason, "ts": time.time()},
     )
+    event(logger, "cognee.add_edge.SUPERSEDES",
+          old=old_id, new=new_id, reason=reason[:40])
 
 
 async def list_supersedes() -> list[dict]:
@@ -158,6 +170,8 @@ async def write_inferred_edge(src: str, dst: str, rel: str,
         relationship_name=rel or "RELATED_TO",
         properties={"source": "rethink", "reason": reason, "ts": time.time()},
     )
+    event(logger, "cognee.add_edge.INFERRED",
+          src=src, dst=dst, rel=rel or "RELATED_TO", reason=reason[:40])
 
 
 async def graph_stats() -> dict:

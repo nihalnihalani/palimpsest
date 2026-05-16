@@ -10,7 +10,10 @@ from __future__ import annotations
 import time
 
 from . import cognee_io, gemini_io, redis_bus, wiki_io
+from .logs import get_logger, event
 from .prompts import CONTRADICTION_CHECK, CONCEPT_RENDER, SYNTH_ANSWER
+
+logger = get_logger(__name__)
 
 CANNED_REWRITE_TRIGGERS: set[str] = {"con-001", "con-002", "con-003"}
 
@@ -37,11 +40,17 @@ def check_contradiction(slug: str, item_text: str,
     key = _verdict_key(slug, item_text)
     cached = redis_bus.verdict_get(key)
     if cached and not forced:
+        event(logger, "contradiction.cache_hit", slug=slug)
         return cached
 
+    t0 = time.time()
     verdict = gemini_io.generate_json(
         CONTRADICTION_CHECK.format(slug=slug, page=page, item=item_text))
+    event(logger, "contradiction.gemini", slug=slug,
+          conflict=verdict.get("conflict"),
+          ms=int((time.time() - t0) * 1000))
     if forced:
+        event(logger, "contradiction.forced_override", slug=slug)
         verdict["conflict"] = True
         # When Gemini honestly returned conflict=false, rewrite is empty.
         # Synthesize one so self_improve actually fires the SUPERSEDES write.
@@ -84,6 +93,9 @@ def self_improve(slug: str, verdict: dict, source: str) -> bool:
         source=source,
         reason=verdict.get("evidence", ""),
     ))
+    event(logger, "supersedes.write", slug=slug,
+          old=verdict.get("old_claim", "")[:40],
+          new=verdict.get("new_claim", "")[:40])
     wiki_io.append_log(
         f"[{int(time.time())}] SELF-CORRECT {slug} — {verdict.get('evidence','')}"
     )
@@ -91,6 +103,7 @@ def self_improve(slug: str, verdict: dict, source: str) -> bool:
 
 
 def ask(question: str) -> str:
+    event(logger, "ask.start", question=question[:80])
     kg = cognee_io.run(cognee_io.search_completion(question))
     concepts = wiki_io.list_concepts()[:8]
     wiki_snippets = {s: (wiki_io.read_concept(s) or "")[:1500] for s in concepts}
@@ -98,4 +111,5 @@ def ask(question: str) -> str:
     answer = gemini_io.generate_text(SYNTH_ANSWER.format(
         kg=kg, wiki=wiki_snippets, question=question,
     ))
+    event(logger, "ask.done", chars=len(answer), concepts=len(concepts))
     return answer

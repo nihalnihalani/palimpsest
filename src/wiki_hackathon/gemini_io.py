@@ -2,12 +2,16 @@
 parsing + retries stay in one place."""
 from __future__ import annotations
 import json
+import time
 from typing import Any
 
 from json_repair import repair_json
 
 from .config import GEMINI_API_KEY
+from .logs import get_logger, event
 from .prompts import EXTRACT_CONCEPTS
+
+logger = get_logger(__name__)
 
 _MODEL_NAME = "gemini-3-pro"
 _configured = False
@@ -24,18 +28,27 @@ def _model():
 
 
 def generate_text(prompt: str) -> str:
-    return _model().generate_content(prompt).text.strip()
+    t0 = time.time()
+    text = _model().generate_content(prompt).text.strip()
+    event(logger, "gemini.text", chars=len(text),
+          ms=int((time.time() - t0) * 1000))
+    return text
 
 
 def generate_json(prompt: str) -> dict[str, Any]:
+    t0 = time.time()
     raw = _model().generate_content(
         prompt,
         generation_config={"response_mime_type": "application/json"},
     ).text
     try:
-        return json.loads(raw)
+        out = json.loads(raw)
     except json.JSONDecodeError:
-        return json.loads(repair_json(raw))
+        out = json.loads(repair_json(raw))
+    event(logger, "gemini.json",
+          keys=list(out.keys())[:5] if isinstance(out, dict) else [],
+          ms=int((time.time() - t0) * 1000))
+    return out
 
 
 def extract_concepts(title: str, body: str) -> list[str]:

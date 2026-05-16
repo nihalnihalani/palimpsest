@@ -5,7 +5,10 @@ import time
 from typing import Any
 
 from . import cognee_io, gemini_io, redis_bus, wiki_io
+from .logs import get_logger, event
 from .prompts import CONCEPT_RENDER
+
+logger = get_logger(__name__)
 
 
 def _parse_item(fields: dict[str, str]) -> dict[str, Any]:
@@ -27,11 +30,18 @@ def process_one(item: dict[str, Any]) -> dict[str, Any]:
     source = item.get("source", "unknown")
     item_id = item.get("id") or redis_bus.sha(text)
 
+    event(logger, "ingest.claim", id=item_id, source=source)
     if not redis_bus.mark_seen(item_id):
+        event(logger, "ingest.dedup_skip", id=item_id)
         return {"slugs": [], "self_corrected": []}
 
+    t0 = time.time()
     cognee_io.run(cognee_io.add(text, source))
+    event(logger, "cognee.add", id=item_id, ms=int((time.time() - t0) * 1000))
+
+    t0 = time.time()
     cognee_io.run(cognee_io.cognify())
+    event(logger, "cognee.cognify", ms=int((time.time() - t0) * 1000))
 
     # Cognee 0.5.8 dropped SearchType.INSIGHTS; top_concepts now uses
     # TRIPLET_COMPLETION which returns LLM-composed text, so triplet parsing
@@ -40,6 +50,8 @@ def process_one(item: dict[str, Any]) -> dict[str, Any]:
     if not concepts:
         concepts = gemini_io.extract_concepts(
             item.get("title", ""), item.get("body", ""))
+    event(logger, "ingest.concepts", id=item_id, count=len(concepts),
+          concepts=concepts[:3])
 
     touched: list[str] = []
     self_corrected: list[str] = []
@@ -51,7 +63,10 @@ def process_one(item: dict[str, Any]) -> dict[str, Any]:
         # Self-correction check FIRST: does the new item contradict the
         # existing page? If yes, write the SUPERSEDES edge + rewrite.
         verdict = query.check_contradiction(slug, text, item_id=item_id)
+        event(logger, "ingest.contradiction_verdict", slug=slug,
+              conflict=bool(verdict.get("conflict")))
         if query.self_improve(slug, verdict, source):
+            event(logger, "ingest.self_corrected", slug=slug)
             touched.append(slug)
             self_corrected.append(slug)
             continue
@@ -72,6 +87,8 @@ def process_one(item: dict[str, Any]) -> dict[str, Any]:
         f"[{int(time.time())}] INGEST {item_id} → {touched} "
         f"(self_corrected={self_corrected})"
     )
+    event(logger, "ingest.done", id=item_id, touched=touched,
+          self_corrected=self_corrected)
     return {"slugs": touched, "self_corrected": self_corrected}
 
 

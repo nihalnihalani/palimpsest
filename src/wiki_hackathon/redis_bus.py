@@ -12,6 +12,10 @@ from .config import (
     EVOLUTION_STREAM, PUBSUB_CHANNEL,
     DEDUP_PREFIX, JSON_KEY_PREFIX, VERDICT_PREFIX,
 )
+from .logs import get_logger, event
+
+logger = get_logger(__name__)
+logger.debug(f"redis_bus configured for REDIS_URL={REDIS_URL!r}")
 
 _r: redis.Redis | None = None
 
@@ -85,6 +89,12 @@ def rewrite_concept(slug: str, new_text: str, reason: str | None = None,
         client().json().arrappend(key, "$.contradictions",
                                   {"reason": reason, "source": source,
                                    "ts": time.time()})
+    # Version count = history length + 1 (the new current).
+    history = client().json().get(key, "$.history") or [[]]
+    history_list = history[0] if isinstance(history, list) and history else []
+    version = (len(history_list) if isinstance(history_list, list) else 0) + 1
+    event(logger, "redis.rewrite_concept", slug=slug, version=version,
+          reason=(reason or "ingest")[:40], source=source or "")
     audit({"slug": slug, "reason": reason or "ingest",
            "source": source or "", "ts": str(time.time())})
     publish({"type": "rewrite" if reason else "ingest", "slug": slug})
@@ -92,6 +102,8 @@ def rewrite_concept(slug: str, new_text: str, reason: str | None = None,
 
 def audit(row: dict) -> str:
     fields = {k: str(v) for k, v in row.items()}
+    event(logger, "redis.audit", slug=row.get("slug", ""),
+          reason=str(row.get("reason", ""))[:40])
     return client().xadd(EVOLUTION_STREAM, fields,
                          maxlen=10_000, approximate=True)
 

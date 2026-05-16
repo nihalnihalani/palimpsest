@@ -6,7 +6,10 @@ from typing import Optional
 
 from . import cognee_io, gemini_io, redis_bus, wiki_io
 from .config import JSON_KEY_PREFIX, EVOLUTION_STREAM
+from .logs import get_logger, event
 from .prompts import SYNTH_ANSWER
+
+logger = get_logger(__name__)
 
 
 def _parse_as_of(ref: str) -> float:
@@ -88,6 +91,7 @@ def snapshot_concept_at(slug: str, as_of_ts: float) -> Optional[str]:
 
 def ask_as_of(question: str, ref: str) -> dict:
     as_of_ts = _parse_as_of(ref)
+    event(logger, "timemachine.as_of", ref=ref, ts=as_of_ts)
     kg = cognee_io.run(cognee_io.search_completion(question))
     slugs = wiki_io.list_concepts()[:8]
     snippets: dict[str, str] = {}
@@ -95,6 +99,8 @@ def ask_as_of(question: str, ref: str) -> dict:
         snap = snapshot_concept_at(s, as_of_ts)
         if snap is not None:
             snippets[s] = snap[:1500]
+    event(logger, "timemachine.snapshot_concepts",
+          count=len(snippets), slugs=list(snippets.keys())[:5])
     answer = gemini_io.generate_text(SYNTH_ANSWER.format(
         kg=kg, wiki=snippets, question=question,
     ))
