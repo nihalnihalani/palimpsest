@@ -13,3 +13,4 @@ wiki/reports/*.md
 wiki/explorations/*.md
 wiki/chats/*.json
 !wiki/.gitkeep
+CLAUDE.md
