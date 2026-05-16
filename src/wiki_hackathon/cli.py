@@ -56,5 +56,43 @@ def ingest(once: bool) -> None:
         ingest_mod.run_forever()
 
 
+# ---- query / graph ------------------------------------------------------
+
+@cli.command()
+@click.argument("question")
+def ask(question: str) -> None:
+    """Ask the wiki a question (uses Cognee KG + wiki + Gemini)."""
+    from . import query as query_mod  # lazy: pulls in Cognee + Gemini
+    click.echo(query_mod.ask(question))
+
+
+@cli.group()
+def graph() -> None:
+    """Inspect the Cognee knowledge graph."""
+
+
+@graph.command("supersedes")
+def graph_supersedes() -> None:
+    """List all SUPERSEDES edges. The killer 2-hop hero is built on this."""
+    from . import cognee_io  # lazy: pulls in Cognee
+    rows = cognee_io.run(cognee_io.list_supersedes())
+    if not rows:
+        click.echo("(no SUPERSEDES edges yet)")
+        return
+    for r in rows:
+        click.echo(
+            f"{r.get('from','?')[:32]} → {r.get('to','?')[:32]}  "
+            f"src={r.get('source','')}  reason={r.get('reason','')[:60]}"
+        )
+
+
+@graph.command("stats")
+def graph_stats() -> None:
+    """Print node + edge counts for the Cognee graph."""
+    from . import cognee_io  # lazy
+    s = cognee_io.run(cognee_io.graph_stats())
+    click.echo(f"nodes={s['nodes']}  edges={s['edges']}")
+
+
 if __name__ == "__main__":
     cli()
