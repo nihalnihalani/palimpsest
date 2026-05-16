@@ -240,3 +240,36 @@ def test_lint_report_minimal(monkeypatch, tmp_path) -> None:
     (tmp_path / "a.md").write_text("[[b]]")
     p = lint.write_report()
     assert "broken wikilinks" in p.read_text()
+
+
+def test_fix_broken_wikilinks(tmp_path, monkeypatch) -> None:
+    from wiki_hackathon import lint, wiki_io
+    monkeypatch.setattr(lint, "CONCEPTS_DIR", tmp_path)
+    monkeypatch.setattr("wiki_hackathon.wiki_io.CONCEPTS_DIR", tmp_path)
+    # set up: agent-memory.md exists, two other pages reference it differently
+    (tmp_path / "agent-memory.md").write_text("Agent memory page")
+    (tmp_path / "foo.md").write_text("links to [[Agent_Memory]]")    # case+underscore mismatch
+    (tmp_path / "bar.md").write_text("links to [[nonexistent-page]]") # truly broken
+    result = lint.fix_broken_wikilinks()
+    assert result["fixed"] == 1   # foo.md repointed
+    assert result["stripped"] == 1  # bar.md unresolvable
+    # foo.md should now contain [[agent-memory]] (real slug)
+    assert "[[agent-memory]]" in (tmp_path / "foo.md").read_text()
+    # bar.md should NO LONGER have brackets around nonexistent-page
+    assert "[[nonexistent-page]]" not in (tmp_path / "bar.md").read_text()
+    assert "nonexistent-page" in (tmp_path / "bar.md").read_text()
+
+
+def test_lint_report_with_fix_section(tmp_path, monkeypatch) -> None:
+    from wiki_hackathon import lint
+    monkeypatch.setattr(lint, "supersedes_summary", lambda: [])
+    monkeypatch.setattr(lint, "kg_stats", lambda: {"nodes": 0, "edges": 0})
+    monkeypatch.setattr(lint, "CONCEPTS_DIR", tmp_path)
+    monkeypatch.setattr(lint, "REPORTS_DIR", tmp_path)
+    monkeypatch.setattr("wiki_hackathon.wiki_io.CONCEPTS_DIR", tmp_path)
+    (tmp_path / "a.md").write_text("[[b]]")
+    fix_result = {"fixed": 0, "stripped": 1, "details": ["a: stripped [[b]]"]}
+    p = lint.write_report(fix_result=fix_result)
+    text = p.read_text()
+    assert "Fixes applied" in text
+    assert "stripped 1" in text

@@ -139,10 +139,19 @@ def rethink() -> None:
 # ---- lint --------------------------------------------------------------
 
 @cli.command()
-def lint() -> None:
+@click.option("--fix", "fix", is_flag=True, default=False,
+              help="Auto-strip dead wikilinks + fuzzy-repoint case/dash mismatches.")
+def lint(fix: bool) -> None:
     """Run structural + knowledge lint, write report."""
     from . import lint as lint_mod  # lazy: pulls in Cognee
-    p = lint_mod.write_report()
+    fix_result = None
+    if fix:
+        fix_result = lint_mod.fix_broken_wikilinks()
+        click.secho(
+            f"fixed {fix_result['fixed']} broken wikilinks, "
+            f"stripped {fix_result['stripped']} unresolvable ones",
+            fg="green" if (fix_result["fixed"] + fix_result["stripped"]) > 0 else "yellow")
+    p = lint_mod.write_report(fix_result=fix_result)
     click.echo(f"wrote {p}")
     click.echo("--- preview ---")
     click.echo(p.read_text())

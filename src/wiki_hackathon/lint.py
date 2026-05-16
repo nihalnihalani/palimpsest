@@ -2,12 +2,63 @@
 from __future__ import annotations
 import re
 import time
+import unicodedata
 from pathlib import Path
 
 from . import wiki_io
 from .config import CONCEPTS_DIR, REPORTS_DIR
 
 _WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
+
+
+def _normalize_slug_key(slug: str) -> str:
+    """Aggressive normalization for fuzzy matching: NFKC + lowercase +
+    swap _ and - + strip non-alphanumeric."""
+    s = unicodedata.normalize("NFKC", slug).lower()
+    s = s.replace("_", "-")
+    return re.sub(r"[^a-z0-9-]+", "", s)
+
+
+def fix_broken_wikilinks() -> dict:
+    """Repoint broken [[wikilinks]] via fuzzy slug match, or strip brackets.
+    Modifies concept files in place. Returns counts + details."""
+    existing = {p.stem for p in CONCEPTS_DIR.glob("*.md")}
+    norm_to_real: dict[str, str] = {}
+    for s in existing:
+        norm_to_real[_normalize_slug_key(s)] = s
+
+    fixed = 0
+    stripped = 0
+    details: list[str] = []
+
+    for p in CONCEPTS_DIR.glob("*.md"):
+        text = p.read_text(encoding="utf-8")
+        new_text = text
+        for m in _WIKILINK_RE.finditer(text):
+            full_link = m.group(0)
+            inner = m.group(1)
+            label = inner.split("|")[0].strip()
+            display = inner.split("|", 1)[1].strip() if "|" in inner else label
+            target = wiki_io.slugify(label)
+            if target in existing:
+                continue   # already valid
+            # try fuzzy repoint
+            key = _normalize_slug_key(label) or _normalize_slug_key(target)
+            real = norm_to_real.get(key)
+            if real and real != target:
+                replacement = f"[[{real}]]" if display == label else f"[[{real}|{display}]]"
+                new_text = new_text.replace(full_link, replacement, 1)
+                fixed += 1
+                details.append(f"{p.stem}: [[{label}]] → [[{real}]]")
+            else:
+                # strip brackets, keep display text
+                new_text = new_text.replace(full_link, display, 1)
+                stripped += 1
+                details.append(f"{p.stem}: stripped [[{label}]]")
+        if new_text != text:
+            p.write_text(new_text, encoding="utf-8")
+
+    return {"fixed": fixed, "stripped": stripped, "details": details}
 
 
 def find_broken_wikilinks() -> list[tuple[str, str]]:
@@ -43,7 +94,9 @@ def kg_stats() -> dict:
     return cognee_io.run(cognee_io.graph_stats())
 
 
-def write_report() -> Path:
+def write_report(fix_result: dict | None = None) -> Path:
+    """Write lint report. If fix_result is provided, include a
+    'Fixes applied' section with counts + sample details."""
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     ts = time.strftime("%Y-%m-%d-%H%M%S")
     p = REPORTS_DIR / f"lint-{ts}.md"
@@ -64,6 +117,19 @@ def write_report() -> Path:
     lines.append(f"| SUPERSEDES edges | {len(supers)} |")
     lines.append(f"| broken wikilinks | {len(broken)} |")
     lines.append(f"| orphan concepts | {len(orphans)} |\n")
+
+    if fix_result:
+        lines.append("## Fixes applied\n")
+        lines.append(
+            f"- repointed {fix_result['fixed']} broken wikilinks "
+            f"via fuzzy slug match"
+        )
+        lines.append(
+            f"- stripped {fix_result['stripped']} unresolvable wikilinks"
+        )
+        for d in (fix_result.get("details") or [])[:10]:
+            lines.append(f"  - {d}")
+        lines.append("")
 
     if supers:
         lines.append("## Superseded claims\n")
