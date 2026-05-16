@@ -60,10 +60,22 @@ def ingest(once: bool) -> None:
 
 @cli.command()
 @click.argument("question")
-def ask(question: str) -> None:
-    """Ask the wiki a question (uses Cognee KG + wiki + Gemini)."""
-    from . import query as query_mod  # lazy: pulls in Cognee + Gemini
-    click.echo(query_mod.ask(question))
+@click.option("--as-of", default=None,
+              help="Reconstruct wiki state at this point: 'now', 'now-5m', "
+                   "'pre-ingest', 'first-rewrite', or epoch seconds.")
+def ask(question: str, as_of: str | None) -> None:
+    """Ask the wiki a question, optionally as of a past time."""
+    if as_of is None:
+        from . import query as query_mod  # lazy: pulls in Cognee + Gemini
+        click.echo(query_mod.ask(question))
+        return
+    from . import timemachine  # lazy: pulls in Cognee + Gemini
+    result = timemachine.ask_as_of(question, as_of)
+    click.echo(
+        f"as of {result['as_of_pretty']} "
+        f"({len(result['concepts_snapshot'])} concept pages):\n"
+    )
+    click.echo(result["answer"])
 
 
 @cli.group()

@@ -130,6 +130,84 @@ def test_rethink_offline(monkeypatch) -> None:
     assert result["path"] == "manual"
 
 
+class _FakeJsonClient:
+    """Mimics redis.Redis.json() — JSON-path lookups return list-wrapped values."""
+
+    def __init__(self, store: dict[str, dict]) -> None:
+        self._store = store
+
+    def get(self, key: str, path: str):
+        doc = self._store.get(key)
+        if doc is None:
+            return None
+        # Strip leading "$." for sub-paths; "$" returns whole doc list-wrapped.
+        if path == "$":
+            return [doc]
+        attr = path[2:] if path.startswith("$.") else path
+        if attr in doc:
+            return [doc[attr]]
+        return []
+
+
+class _FakeRedis:
+    """Minimal stand-in for redis.Redis used by snapshot_concept_at."""
+
+    def __init__(self, store: dict[str, dict]) -> None:
+        self._store = store
+
+    def exists(self, key: str) -> int:
+        return 1 if key in self._store else 0
+
+    def json(self) -> _FakeJsonClient:
+        return _FakeJsonClient(self._store)
+
+
+def test_timemachine_snapshot(monkeypatch) -> None:
+    from wiki_hackathon import timemachine, redis_bus
+
+    fake = _FakeRedis({
+        "wiki:concept:foo": {
+            "current": "v3-current",
+            "history": [
+                {"text": "v1-oldest", "replaced_at": 100.0},
+                {"text": "v2-middle", "replaced_at": 200.0},
+            ],
+        }
+    })
+    monkeypatch.setattr(redis_bus, "client", lambda: fake)
+
+    # as_of 50 (before any rewrite) — earliest archived candidate (v1, replaced at 100)
+    assert timemachine.snapshot_concept_at("foo", 50.0) == "v1-oldest"
+    # as_of 150 (between two rewrites) — v2 was current then (replaced at 200)
+    assert timemachine.snapshot_concept_at("foo", 150.0) == "v2-middle"
+    # as_of now (after all rewrites) — current
+    import time
+    assert timemachine.snapshot_concept_at("foo", time.time()) == "v3-current"
+
+    # Missing concept returns None
+    assert timemachine.snapshot_concept_at("does-not-exist", 50.0) is None
+
+
+def test_timemachine_parse_as_of() -> None:
+    import time as _time
+    from wiki_hackathon import timemachine
+
+    now = _time.time()
+    # 'now' / empty → ~now
+    assert abs(timemachine._parse_as_of("now") - now) < 2.0
+    assert abs(timemachine._parse_as_of("") - now) < 2.0
+    # pre-ingest aliases → 0.0
+    assert timemachine._parse_as_of("pre-ingest") == 0.0
+    assert timemachine._parse_as_of("before-contradictions") == 0.0
+    assert timemachine._parse_as_of("0") == 0.0
+    # relative offsets
+    assert abs(timemachine._parse_as_of("now-30s") - (now - 30)) < 2.0
+    assert abs(timemachine._parse_as_of("now-5m") - (now - 300)) < 2.0
+    assert abs(timemachine._parse_as_of("now-1h") - (now - 3600)) < 2.0
+    # raw epoch seconds
+    assert timemachine._parse_as_of("12345.5") == 12345.5
+
+
 def test_lint_report_minimal(monkeypatch, tmp_path) -> None:
     # Stub Cognee calls so test runs without it
     monkeypatch.setattr(lint, "supersedes_summary", lambda: [])
