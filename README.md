@@ -21,6 +21,7 @@ python3.11 -m venv .venv && source .venv/bin/activate
 pip install -e .
 
 wiki seed                                  # ingest 15 synthetic items (~1-2 min)
+wiki load-baseline                         # also load hand-authored baseline pages
 wiki inject-canned contradiction_1         # inject a planted contradiction
 wiki ingest --once                         # page rewrites + SUPERSEDES edge fires
 wiki graph supersedes                      # see the new edge

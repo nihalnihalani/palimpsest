@@ -123,6 +123,25 @@ def seed(path: str | None) -> None:
     click.echo(f"processed {m} items")
 
 
+@cli.command("load-baseline")
+def load_baseline_cmd() -> None:
+    """Copy hand-authored baseline pages into wiki/concepts/ so the demo
+    hero target deterministically exists."""
+    import shutil
+    from pathlib import Path
+    from .config import CONCEPTS_DIR
+    baseline_dir = Path(__file__).resolve().parents[2] / "snapshot" / "baseline" / "wiki" / "concepts"
+    if not baseline_dir.exists():
+        click.echo(f"baseline missing at {baseline_dir}", err=True)
+        raise SystemExit(1)
+    n = 0
+    for src in baseline_dir.glob("*.md"):
+        dst = CONCEPTS_DIR / src.name
+        shutil.copyfile(src, dst)
+        n += 1
+    click.echo(f"loaded {n} baseline concept pages")
+
+
 @cli.command()
 def reset() -> None:
     """Wipe Redis + Cognee + wiki for a clean demo run."""
