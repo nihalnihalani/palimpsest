@@ -155,7 +155,7 @@ wiki-hackathon orchestrator
 
 Usage: ./run.sh <subcommand>
 
-  setup    Idempotent: docker up + venv + pip install + .env scaffold
+  setup    Idempotent: venv + pip install + Redis bringup (auto: cloud/brew/docker) + .env scaffold
   doctor   Diagnostic dump (Redis health, Cognee graph stats, env, logs)
   verify   Run scripts/verify_live.sh (9-step live smoke)
   seed     wiki reset && wiki seed && wiki load-baseline
