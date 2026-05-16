@@ -19,14 +19,16 @@ def _parse_item(fields: dict[str, str]) -> dict[str, Any]:
     return out
 
 
-def process_one(item: dict[str, Any]) -> list[str]:
-    """Ingest one item end-to-end. Returns slugs touched."""
+def process_one(item: dict[str, Any]) -> dict[str, Any]:
+    """Ingest one item end-to-end. Returns dict with touched slugs +
+    self-corrected slugs."""
+    from . import query  # local import to avoid cycle on cold start
     text = f"{item.get('title','')}\n\n{item.get('body','')}"
     source = item.get("source", "unknown")
     item_id = item.get("id") or redis_bus.sha(text)
 
     if not redis_bus.mark_seen(item_id):
-        return []
+        return {"slugs": [], "self_corrected": []}
 
     cognee_io.run(cognee_io.add(text, source))
     cognee_io.run(cognee_io.cognify())
@@ -44,6 +46,15 @@ def process_one(item: dict[str, Any]) -> list[str]:
         slug = wiki_io.slugify(name)
         if not slug:
             continue
+
+        # Self-correction check FIRST: does the new item contradict the
+        # existing page? If yes, write the SUPERSEDES edge + rewrite.
+        verdict = query.check_contradiction(slug, text, item_id=item_id)
+        if query.self_improve(slug, verdict, source):
+            touched.append(slug)
+            continue
+
+        # Otherwise, normal concept render (could be initial or refinement).
         existing = wiki_io.read_concept(slug) or "(empty)"
         page = gemini_io.generate_text(CONCEPT_RENDER.format(
             title=name, existing=existing, source=source,
@@ -55,8 +66,13 @@ def process_one(item: dict[str, Any]) -> list[str]:
         redis_bus.rewrite_concept(slug, page, reason=None, source=source)
         touched.append(slug)
 
-    wiki_io.append_log(f"[{int(time.time())}] INGEST {item_id} → {touched}")
-    return touched
+    self_corrected = [s for s in touched
+                      if query.check_contradiction(s, text, item_id).get("conflict")]
+    wiki_io.append_log(
+        f"[{int(time.time())}] INGEST {item_id} → {touched} "
+        f"(self_corrected={self_corrected})"
+    )
+    return {"slugs": touched, "self_corrected": self_corrected}
 
 
 def run_once(block_ms: int = 5_000) -> int:
