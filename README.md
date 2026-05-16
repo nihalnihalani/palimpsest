@@ -14,22 +14,28 @@ Built for the AI-Memory Hackathon. Stack: **Cognee 0.5.8 · Redis Stack · Gemin
 
 ## Run locally
 
-```bash
-cp .env.example .env                       # then add your GEMINI_API_KEY
-docker compose up -d                       # Redis Stack on 6379 + RedisInsight 8001
-python3.11 -m venv .venv && source .venv/bin/activate
-pip install -e .
+One command does everything:
 
-wiki seed                                  # ingest 15 synthetic items (~1-2 min)
-wiki load-baseline                         # also load hand-authored baseline pages
-wiki inject-canned contradiction_1         # inject a planted contradiction
-wiki ingest --once                         # page rewrites + SUPERSEDES edge fires
-wiki graph supersedes                      # see the new edge
-wiki ask "what's the current view on agent memory?"
-wiki eval                                  # before/after score (0/3 -> 3/3)
-wiki lint                                  # metrics report
-wiki dash                                  # live terminal dashboard
+```bash
+./run.sh setup     # docker up + venv + .env scaffold
+# edit .env to set GEMINI_API_KEY
+./run.sh all       # doctor → verify → seed → demo
 ```
+
+Subcommands:
+
+| Cmd | What |
+|---|---|
+| `setup` | docker up + venv + pip install + .env scaffold |
+| `doctor` | Diagnostic dump |
+| `verify` | 9-step live smoke (`scripts/verify_live.sh`) |
+| `seed` | `wiki reset && wiki seed && wiki load-baseline` |
+| `demo` | Interactive 3-min stage flow |
+| `rethink` | Cognee memify graph enrichment |
+| `test` | pytest |
+| `all` | full chain |
+
+Raw `wiki` CLI subcommands: `ask`, `dash`, `doctor`, `eval`, `graph`, `ingest`, `inject`, `inject-canned`, `lint`, `load-baseline`, `reset`, `rethink`, `seed`.
 
 ## Architecture
 
