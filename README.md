@@ -50,6 +50,12 @@ You need **Redis Stack** (Redis + RedisJSON modules). Pick one:
 
 Raw `wiki` CLI subcommands: `ask`, `dash`, `doctor`, `eval`, `graph`, `ingest`, `inject`, `inject-canned`, `lint`, `load-baseline`, `reset`, `rethink`, `seed`.
 
+`wiki ingest` drains queued items and exits. Use `wiki ingest --once` for one
+message, or `wiki ingest --watch` for an infinite worker. In local Kuzu mode,
+`--watch` keeps the graph database locked while it runs, so stop it before
+running `wiki reset`, `wiki seed`, `wiki doctor`, `wiki graph`, or `wiki ask`
+from another terminal.
+
 ## Architecture
 
 ```
@@ -70,6 +76,20 @@ synthetic items ──XADD──► Redis Stream ──► ingest worker
 ```
 
 Full design + 3-min demo script: [`docs/plans/2026-05-16-wiki-hackathon-design.md`](docs/plans/2026-05-16-wiki-hackathon-design.md).
+
+## Kuzu lock troubleshooting
+
+Local Cognee uses an embedded Kuzu/Ladybug graph under `.cognee_system/`, which
+is effectively single-process. If a command reports a graph lock, run:
+
+```bash
+wiki doctor
+```
+
+The doctor output includes any PIDs currently holding
+`.cognee_system/databases/cognee_graph_kuzu*`. Stop those processes, then rerun
+the command. The common accidental holder is `wiki ingest --watch` left running
+in another terminal.
 
 ## Self-improvement, made concrete
 

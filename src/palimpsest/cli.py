@@ -46,14 +46,25 @@ def inject_canned(name: str) -> None:
 
 @cli.command()
 @click.option("--once", is_flag=True, help="Process one message then exit.")
-def ingest(once: bool) -> None:
+@click.option("--drain", is_flag=True,
+              help="Process until the stream is idle, then exit. This is the default.")
+@click.option("--watch", "--forever", is_flag=True,
+              help="Poll forever. Holds the local Kuzu graph lock while running.")
+def ingest(once: bool, drain: bool, watch: bool) -> None:
     """Run the ingest worker."""
+    if sum(bool(v) for v in (once, drain, watch)) > 1:
+        raise click.UsageError("choose only one of --once, --drain, or --watch")
+
     from . import ingest as ingest_mod  # lazy: pulls in Cognee
-    if once:
+
+    if watch:
+        ingest_mod.run_forever()
+    elif once:
         n = ingest_mod.run_once(block_ms=2_000)
         click.echo(f"processed {n} item(s)")
     else:
-        ingest_mod.run_forever()
+        n = ingest_mod.drain(block_ms=1_500)
+        click.echo(f"processed {n} item(s)")
 
 
 # ---- query / graph ------------------------------------------------------
@@ -391,6 +402,25 @@ def vector_smoke_cmd() -> None:
     for use in payload["redis_in_use_for"]:
         click.echo(f"  - {use}")
     click.secho(f"\nwrote {p}", fg="green")
+
+
+@cli.command("cloud-smoke")
+@click.option("--timeout", default=90, type=int,
+              help="Seconds before the cloud smoke fails. Default 90.")
+def cloud_smoke_cmd(timeout: int) -> None:
+    """Minimal Cognee Cloud gate: serve -> remember -> recall."""
+    from . import cloud_smoke
+    try:
+        payload = cloud_smoke.run(timeout_sec=timeout)
+    except Exception as e:
+        raise click.ClickException(f"Cognee Cloud smoke failed: {e}") from e
+
+    p = cloud_smoke.write_evidence(payload)
+    click.secho("cognee cloud remember+recall: OK", bold=True, fg="green")
+    click.echo(f"service url: {payload['service_url']}")
+    click.echo(f"dataset:     {payload['dataset']}")
+    click.echo(f"token found: {payload['token_found']}")
+    click.echo(f"wrote {p}")
 
 
 # ---- evidence (run eval N times for noise-resistant before/after) ----------

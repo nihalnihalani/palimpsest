@@ -15,7 +15,14 @@ for _env_key, _rel in (
     ("DATA_ROOT_DIRECTORY", ".data_storage"),
     ("CACHE_ROOT_DIRECTORY", ".cognee_cache"),
 ):
-    os.environ.setdefault(_env_key, str((ROOT / _rel).resolve()))
+    _desired = str((ROOT / _rel).resolve())
+    _current = (os.environ.get(_env_key) or "").strip()
+    if (
+        not _current
+        or not Path(_current).expanduser().is_absolute()
+        or "/site-packages/cognee/" in _current
+    ):
+        os.environ[_env_key] = _desired
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 
@@ -99,3 +106,24 @@ def patch_litellm_for_gemini() -> None:
 
 
 patch_litellm_for_gemini()
+
+
+def configure_cognee_from_env() -> None:
+    """Force cognee to use the embedding model/provider/dims we set in .env.
+
+    NOTE: cognee 1.1.0 has its own BaseConfig instance that the runtime reads
+    directly from environment variables at pipeline-execution time. Calling
+    cognee.config.set_* mutates a different singleton and the override does
+    NOT propagate to BaseConfig. The .env vars (EMBEDDING_MODEL etc.) DO
+    propagate because cognee's BaseConfig reads them via pydantic-settings.
+    So this function is effectively a no-op unless cognee changes that
+    behaviour upstream; we keep it as a stub + audit log so future cognee
+    versions that DO honour the set_* path Just Work.
+
+    In Cognee Cloud mode (COGNEE_SERVICE_URL set), embeddings happen on the
+    cloud tenant's side, so this is fully moot.
+    """
+    return  # no-op (see docstring)
+
+
+configure_cognee_from_env()

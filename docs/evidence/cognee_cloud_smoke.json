@@ -1,0 +1,11 @@
+{
+  "mode": "cloud",
+  "service_url": "https://tenant-55831ce5-f32b-4843-9619-c1f8e543188e.aws.cognee.ai",
+  "dataset": "palimpsest-cloud-smoke-1778976624-a5dccd38",
+  "remember_ok": true,
+  "recall_ok": true,
+  "token_found": true,
+  "answer_preview": "{'kind': 'graph_completion', 'search_type': 'GRAPH_COMPLETION', 'text': 'PALIMPSEST_CLOUD_SMOKE_C73B14340B', 'score': None, 'dataset_id': '5379be34-1ab3-5ccc-9ff3-b9efc5c6f0d0', 'dataset_name': 'palimpsest-cloud-smoke-1778976624-a5dccd38', 'metadata': {}, 'raw': {'value': 'PALIMPSEST_CLOUD_SMOKE_C73B14340B'}, 'structured': None, 'source': 'graph'}",
+  "local_kuzu_holders": [],
+  "ts": 1778976632.393982
+}

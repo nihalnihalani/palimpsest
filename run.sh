@@ -146,6 +146,13 @@ cmd_vector_smoke() {
     wiki vector-smoke
 }
 
+cmd_cloud_smoke() {
+    activate_venv
+    require_env_key
+    step "wiki cloud-smoke (minimal Cognee Cloud remember+recall gate)"
+    wiki cloud-smoke
+}
+
 cmd_evidence() {
     activate_venv
     require_env_key
@@ -204,6 +211,7 @@ Usage: ./run.sh <subcommand>
   demo           Run demo/run_demo.sh (3-min stage flow)
   rethink        wiki rethink (cognee.memify graph enrichment)
   vector-smoke   wiki vector-smoke (probe cognee's resolved vector backend, write docs/evidence/)
+  cloud-smoke    wiki cloud-smoke (minimal Cognee Cloud remember+recall gate)
   evidence       wiki evidence --label <baseline|improved> --runs <N>   (default: baseline, 5)
   improve        Run the full skill self-improvement loop demo (remember -> run -> record -> status)
   improve-apply  ./run.sh improve-apply <proposal_id>  (commit a previously-proposed SKILL.md rewrite)
@@ -230,6 +238,7 @@ case "${1:-help}" in
     demo)          cmd_demo ;;
     rethink)       cmd_rethink ;;
     vector-smoke)  cmd_vector_smoke ;;
+    cloud-smoke)   cmd_cloud_smoke ;;
     evidence)      cmd_evidence "$@" ;;
     improve)       cmd_improve ;;
     improve-apply) cmd_improve_apply "$@" ;;

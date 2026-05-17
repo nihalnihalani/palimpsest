@@ -5,6 +5,10 @@ The wiki_io and lint tests run fully offline via monkeypatch + tmp_path.
 """
 from __future__ import annotations
 
+import sys
+import types
+
+from click.testing import CliRunner
 import pytest
 import redis as redis_lib
 
@@ -324,3 +328,42 @@ def test_lint_report_with_fix_section(tmp_path, monkeypatch) -> None:
     text = p.read_text()
     assert "Fixes applied" in text
     assert "stripped 1" in text
+
+
+def test_ingest_cli_drains_by_default(monkeypatch) -> None:
+    import palimpsest
+    from palimpsest.cli import cli
+
+    calls: list[tuple[str, int | None]] = []
+    fake_ingest = types.SimpleNamespace(
+        drain=lambda block_ms=1_500: calls.append(("drain", block_ms)) or 2,
+        run_once=lambda block_ms=2_000: calls.append(("once", block_ms)) or 1,
+        run_forever=lambda: calls.append(("watch", None)),
+    )
+    monkeypatch.setitem(sys.modules, "palimpsest.ingest", fake_ingest)
+    monkeypatch.setattr(palimpsest, "ingest", fake_ingest, raising=False)
+
+    result = CliRunner().invoke(cli, ["ingest"])
+
+    assert result.exit_code == 0
+    assert "processed 2 item(s)" in result.output
+    assert calls == [("drain", 1_500)]
+
+
+def test_ingest_cli_watch_is_explicit(monkeypatch) -> None:
+    import palimpsest
+    from palimpsest.cli import cli
+
+    calls: list[str] = []
+    fake_ingest = types.SimpleNamespace(
+        drain=lambda block_ms=1_500: 0,
+        run_once=lambda block_ms=2_000: 0,
+        run_forever=lambda: calls.append("watch"),
+    )
+    monkeypatch.setitem(sys.modules, "palimpsest.ingest", fake_ingest)
+    monkeypatch.setattr(palimpsest, "ingest", fake_ingest, raising=False)
+
+    result = CliRunner().invoke(cli, ["ingest", "--watch"])
+
+    assert result.exit_code == 0
+    assert calls == ["watch"]

@@ -1,12 +1,12 @@
 {
   "cognee_mode": "cloud",
-  "cognee_service_url": "https://palimpsest.cognee.ai",
+  "cognee_service_url": "https://tenant-55831ce5-f32b-4843-9619-c1f8e543188e.aws.cognee.ai",
   "cognee_vector_provider": "lancedb",
-  "cognee_vector_url": "/Users/nihalnihalani/Desktop/Github/wiki-hackathon/.venv/lib/python3.11/site-packages/cognee/.cognee_system/databases/cognee.lancedb",
+  "cognee_vector_url": "/Users/nihalnihalani/Desktop/Github/wiki-hackathon/.cognee_system/databases/cognee.lancedb",
   "redis_mode": "remote",
-  "redis_host": "redis-12345.c1.us-east-1-2.ec2.cloud.redislabs.com",
-  "redis_port": 12345,
-  "redis_tls": true,
+  "redis_host": "redis-12920.c60.us-west-1-2.ec2.cloud.redislabs.com",
+  "redis_port": 12920,
+  "redis_tls": false,
   "redis_vendor_hint": "redis_cloud",
   "supported_providers_extra": [],
   "builtin_providers": [

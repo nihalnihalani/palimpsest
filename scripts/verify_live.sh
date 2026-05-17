@@ -94,11 +94,21 @@ else
     log_fail "hello_gemini failed: ${GEMINI_OUT}"
 fi
 
-section "5. hello_cognee (~30-60s)"
-if python scripts/hello_cognee.py 2>&1 | grep -q "GRAPH_COMPLETION"; then
-    log_pass "Cognee add -> cognify -> search works"
+COGNEE_CLOUD_URL=$(grep -E '^COGNEE_SERVICE_URL=.' .env 2>/dev/null | head -1 | cut -d= -f2- || true)
+if [ -n "$COGNEE_CLOUD_URL" ]; then
+    section "5. Cognee Cloud smoke (~30-90s)"
+    if wiki cloud-smoke --timeout 90 2>&1 | grep -q "remember+recall: OK"; then
+        log_pass "Cognee Cloud serve -> remember -> recall works"
+    else
+        log_fail "wiki cloud-smoke failed -- cloud tenant or SDK routing is not healthy"
+    fi
 else
-    log_fail "hello_cognee failed -- check LLM_* env vars in .env"
+    section "5. hello_cognee (~30-60s)"
+    if python scripts/hello_cognee.py 2>&1 | grep -q "GRAPH_COMPLETION"; then
+        log_pass "Cognee add -> cognify -> search works"
+    else
+        log_fail "hello_cognee failed -- check LLM_* env vars in .env"
+    fi
 fi
 
 section "6. Reset + seed (~60-120s)"
