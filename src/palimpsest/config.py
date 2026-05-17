@@ -7,6 +7,14 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT / ".env")
 
+# Quiet cognee's structlog output by default. Its ConsoleRenderer paints the
+# logger name in BLUE which is illegible on dark terminal backgrounds, and
+# its INFO-level chatter (log-file path, auth posture, "Cognee 1.0 changes")
+# drowns out our own status lines. Users can re-enable everything with
+# `LOG_LEVEL=INFO` (or DEBUG) in .env. NO_COLOR follows https://no-color.org/.
+os.environ.setdefault("LOG_LEVEL", "WARNING")
+os.environ.setdefault("NO_COLOR", "1")
+
 # Cognee's BaseConfig defaults resolve ".cognee_system" relative to the *cognee package*
 # (inside site-packages). Force repo-local paths so Claude/agents + CLI share one DB and
 # installs stay writable.

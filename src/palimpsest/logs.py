@@ -15,8 +15,11 @@ _INITIALIZED = False
 
 
 def _level_from_env() -> int:
-    return getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(),
-                   logging.INFO)
+    # WIKI_LOG_LEVEL is independent of LOG_LEVEL (which we lower to WARNING
+    # in config.py to silence cognee's structlog noise) — that way our own
+    # wiki.* loggers stay informative even when cognee is quiet.
+    raw = (os.environ.get("WIKI_LOG_LEVEL") or "INFO").upper()
+    return getattr(logging, raw, logging.INFO)
 
 
 def _init() -> None:
