@@ -7,8 +7,49 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT / ".env")
 
+# Cognee's BaseConfig defaults resolve ".cognee_system" relative to the *cognee package*
+# (inside site-packages). Force repo-local paths so Claude/agents + CLI share one DB and
+# installs stay writable.
+for _env_key, _rel in (
+    ("SYSTEM_ROOT_DIRECTORY", ".cognee_system"),
+    ("DATA_ROOT_DIRECTORY", ".data_storage"),
+    ("CACHE_ROOT_DIRECTORY", ".cognee_cache"),
+):
+    _desired = str((ROOT / _rel).resolve())
+    _current = (os.environ.get(_env_key) or "").strip()
+    if (
+        not _current
+        or not Path(_current).expanduser().is_absolute()
+        or "/site-packages/cognee/" in _current
+    ):
+        os.environ[_env_key] = _desired
+
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
-GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+
+# The hackathon brief issues `LLM_API_KEY` at kickoff — our direct
+# google.generativeai SDK calls need `GEMINI_API_KEY`. Accept either; if
+# only LLM_API_KEY is set (the brief's convention), use it.
+GEMINI_API_KEY = (
+    os.environ.get("GEMINI_API_KEY")
+    or os.environ.get("LLM_API_KEY")
+    or ""
+).strip()
+if not GEMINI_API_KEY:
+    raise RuntimeError(
+        "GEMINI_API_KEY (or LLM_API_KEY) is missing or empty in .env. "
+        "Set one of them to a valid Gemini key and re-run."
+    )
+
+# LiteLLM (Cognee) vs google.generativeai use different model strings:
+#   LLM_MODEL=gemini/<api-model-id>  →  GEMINI_NATIVE_MODEL=<api-model-id>
+# Override GEMINI_NATIVE_MODEL if you use a LiteLLM alias that doesn't match the GenAI API id.
+_LLM_MODEL = (os.environ.get("LLM_MODEL") or "gemini/gemini-3-pro-preview").strip()
+GEMINI_NATIVE_MODEL = (os.environ.get("GEMINI_NATIVE_MODEL") or "").strip()
+if not GEMINI_NATIVE_MODEL:
+    if _LLM_MODEL.startswith("gemini/"):
+        GEMINI_NATIVE_MODEL = _LLM_MODEL.split("/", 1)[1]
+    else:
+        GEMINI_NATIVE_MODEL = "gemini-2.5-pro"
 
 # Constants used by every module
 STREAM = "firehose:items"
@@ -33,8 +74,8 @@ for d in (CONCEPTS_DIR, REPORTS_DIR, EXPLORATIONS_DIR, SNAPSHOT_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
 
-def patch_litellm_for_gemini3() -> None:
-    """Inject gemini-3-pro into LiteLLM's model_cost map if missing.
+def patch_litellm_for_gemini() -> None:
+    """Inject current LLM_MODEL into LiteLLM's model_cost map if missing.
 
     Why: Cognee uses LiteLLM; bleeding-edge model strings sometimes raise
     KeyError: 'max_tokens' on lookup. One-line patch from research.
@@ -43,9 +84,15 @@ def patch_litellm_for_gemini3() -> None:
         import litellm  # type: ignore
     except ImportError:
         return
-    for name in ("gemini/gemini-3-pro", "gemini/gemini-3-pro-preview"):
-        if name in getattr(litellm, "model_cost", {}):
+    # Register both the active model (from LLM_MODEL) AND known Gemini 3
+    # preview names that LiteLLM's model_cost map doesn't ship with yet.
+    candidates: list[str] = [_LLM_MODEL] if _LLM_MODEL.startswith("gemini/") else []
+    candidates += ["gemini/gemini-3-pro", "gemini/gemini-3-pro-preview"]
+    seen: set[str] = set()
+    for name in candidates:
+        if name in seen or name in getattr(litellm, "model_cost", {}):
             continue
+        seen.add(name)
         litellm.register_model(  # type: ignore[attr-defined]
             {
                 name: {
@@ -63,11 +110,34 @@ def patch_litellm_for_gemini3() -> None:
         )
 
 
-patch_litellm_for_gemini3()
+patch_litellm_for_gemini()
 
-# Register the Cognee Redis vector adapter (community package). Side-effect
-# import — no register() function, the module body calls use_vector_adapter().
+# Register the Cognee Redis vector adapter (community package) if installed.
+# Side-effect import -- no register() function, the module body calls
+# use_vector_adapter(). Wrapped in try/except so a missing optional package
+# does not break the project.
 try:
     import cognee_community_vector_adapter_redis.register  # noqa: F401
 except ImportError:
     pass
+
+
+def configure_cognee_from_env() -> None:
+    """Force cognee to use the embedding model/provider/dims we set in .env.
+
+    NOTE: cognee 1.1.0 has its own BaseConfig instance that the runtime reads
+    directly from environment variables at pipeline-execution time. Calling
+    cognee.config.set_* mutates a different singleton and the override does
+    NOT propagate to BaseConfig. The .env vars (EMBEDDING_MODEL etc.) DO
+    propagate because cognee's BaseConfig reads them via pydantic-settings.
+    So this function is effectively a no-op unless cognee changes that
+    behaviour upstream; we keep it as a stub + audit log so future cognee
+    versions that DO honour the set_* path Just Work.
+
+    In Cognee Cloud mode (COGNEE_SERVICE_URL set), embeddings happen on the
+    cloud tenant's side, so this is fully moot.
+    """
+    return  # no-op (see docstring)
+
+
+configure_cognee_from_env()

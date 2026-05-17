@@ -106,9 +106,20 @@ def run_once(block_ms: int = 5_000) -> int:
     return 1
 
 
+def drain(block_ms: int = 1_500) -> int:
+    """Process available messages until the stream is idle, then exit."""
+    processed = 0
+    while True:
+        n = run_once(block_ms=block_ms)
+        if n == 0:
+            break
+        processed += n
+    return processed
+
+
 def run_forever() -> None:
     redis_bus.ensure_group()
-    print("ingest worker running. Ctrl-C to stop.")
+    print("ingest worker running. Ctrl-C to stop. Local Kuzu stays locked while this runs.")
     while True:
         try:
             n = run_once(block_ms=5_000)

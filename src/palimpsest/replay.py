@@ -8,6 +8,12 @@ from . import ingest as ingest_mod, redis_bus
 
 
 def replay(jsonl_path: Path, pace_sec: float = 0.2) -> int:
+    # Create the consumer group BEFORE pushing items. Otherwise
+    # ensure_group()'s id="$" anchors the group at the (current) end of the
+    # stream, and XREADGROUP ">" misses everything we push afterward. With the
+    # group created up-front on an empty stream, every subsequent xadd is
+    # immediately visible to the worker via ">".
+    redis_bus.ensure_group()
     n = 0
     with jsonl_path.open() as f:
         for line in f:
@@ -23,10 +29,4 @@ def replay(jsonl_path: Path, pace_sec: float = 0.2) -> int:
 
 def drain() -> int:
     """Ingest until the stream is empty."""
-    processed = 0
-    while True:
-        n = ingest_mod.run_once(block_ms=1_500)
-        if n == 0:
-            break
-        processed += n
-    return processed
+    return ingest_mod.drain(block_ms=1_500)

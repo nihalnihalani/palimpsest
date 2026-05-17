@@ -131,19 +131,33 @@ async def search_completion(query: str) -> str:
 
 async def search_insights(query: str) -> list[Any]:
     """Cognee V2: recall() with TRIPLET_COMPLETION. Returns the raw response
-    list — callers (top_concepts) defensively parse triples/answer text.
-    Cognee raises NoDataError when the triplet-embeddings memify pipeline
-    hasn't been run — return [] so the Gemini fallback in
-    ingest.process_one takes over."""
+    list -- callers (top_concepts) defensively parse triples/answer text.
+
+    On a fresh cognee install / cloud tenant, TRIPLET_COMPLETION can raise
+    NoDataError until the create_triplet_embeddings memify pipeline has run.
+    Cognee Cloud is stricter: it returns 404 'Recall prerequisites not met'.
+    We catch all 'no data yet' shapes here and return [] so top_concepts
+    falls back cleanly to Gemini-direct concept extraction (see ingest.py)."""
     try:
         return await cognee.recall(
             query_text=query,
             query_type=SearchType.TRIPLET_COMPLETION,
             datasets=[DATASET],
         )
-    except Exception as e:
-        event(logger, "cognee.search_insights.fallback", reason=str(e)[:120])
-        return []
+    except Exception as e:  # noqa: BLE001
+        msg = str(e)
+        # All "no data yet" shapes -> empty result so callers fall back cleanly:
+        # - NoDataError on fresh local graph
+        # - "triplet_embeddings" memify pipeline not run yet
+        # - Cognee Cloud's 404 "Recall prerequisites not met" before first cognify
+        forgiving_signals = (
+            "NoDataError", "triplet_embeddings", "TRIPLET_COMPLETION",
+            "Recall prerequisites", "Remote recall failed (404)",
+        )
+        if any(s in msg or s in type(e).__name__ for s in forgiving_signals):
+            event(logger, "cognee.recall.no_data_yet", reason=msg[:120])
+            return []
+        raise
 
 
 async def top_concepts(item_text: str, k: int = 3) -> list[str]:
@@ -283,6 +297,17 @@ async def graph_stats() -> dict:
     return {"nodes": len(nodes), "edges": len(edges)}
 
 
+async def doctor_graph_snapshot() -> tuple[dict, list[dict]]:
+    """Stats + SUPERSEDES in one asyncio loop.
+
+    Calling ``asyncio.run`` twice in a row (separate ``run()`` invocations)
+    can leave Kuzu unable to re-lock its DB file on macOS.
+    """
+    stats = await graph_stats()
+    sups = await list_supersedes()
+    return stats, sups
+
+
 async def reset() -> None:
     # 0.5.8 prune_system signature: (graph=True, vector=True, metadata=False, cache=True)
     await cognee.prune.prune_data()
@@ -295,6 +320,23 @@ async def _with_cloud_init(coro):
     return await coro
 
 
+# Persistent event loop -- cognee.serve()'s aiohttp session ties itself to the
+# loop where it was created. asyncio.run() creates+closes a fresh loop each
+# call, which invalidates the cognee cloud client and causes "Event loop is
+# closed" RuntimeError on the second cognee call. We instead keep a single
+# loop alive for the lifetime of the process.
+_LOOP: asyncio.AbstractEventLoop | None = None
+
+
+def _get_loop() -> asyncio.AbstractEventLoop:
+    global _LOOP
+    if _LOOP is None or _LOOP.is_closed():
+        _LOOP = asyncio.new_event_loop()
+    return _LOOP
+
+
 def run(coro):
-    """Synchronous entrypoint for Click commands."""
-    return asyncio.run(_with_cloud_init(coro))
+    """Synchronous entrypoint for Click commands. Uses a persistent loop so
+    cognee's cloud client / aiohttp session survives across multiple calls."""
+    loop = _get_loop()
+    return loop.run_until_complete(_with_cloud_init(coro))

@@ -14,6 +14,20 @@ log_pass() { printf "  \033[32m✓\033[0m %s\n" "$1"; PASS=$((PASS+1)); }
 log_fail() { printf "  \033[31m✗\033[0m %s\n" "$1"; FAIL=$((FAIL+1)); }
 section() { printf "\n\033[1m== %s ==\033[0m\n" "$1"; }
 
+# Host-only hint for logs (avoid printing Redis credentials under set -u)
+REDIS_URL_HINT=""
+if [ -f .env ]; then
+    _ru=$(grep -E '^REDIS_URL=' .env | head -1 | cut -d= -f2- || true)
+    case "$_ru" in
+        redis://*@*)
+            REDIS_URL_HINT=$(printf '%s' "$_ru" | sed -E 's|redis://[^@]*@([^:/]+).*|\1|') ;;
+        redis://*)
+            REDIS_URL_HINT=$(printf '%s' "$_ru" | sed -E 's|redis://([^:/]+).*|\1|') ;;
+        *) REDIS_URL_HINT="(custom REDIS_URL)" ;;
+    esac
+fi
+REDIS_URL_HINT=${REDIS_URL_HINT:-localhost}
+
 section "1. Redis reachable"
 # Use Python so it works against docker, brew, OR Redis Cloud (any REDIS_URL).
 REDIS_PING=$(python -c "
@@ -80,11 +94,21 @@ else
     log_fail "hello_gemini failed: ${GEMINI_OUT}"
 fi
 
-section "5. hello_cognee (~30-60s)"
-if python scripts/hello_cognee.py 2>&1 | grep -q "GRAPH_COMPLETION"; then
-    log_pass "Cognee add -> cognify -> search works"
+COGNEE_CLOUD_URL=$(grep -E '^COGNEE_SERVICE_URL=.' .env 2>/dev/null | head -1 | cut -d= -f2- || true)
+if [ -n "$COGNEE_CLOUD_URL" ]; then
+    section "5. Cognee Cloud smoke (~30-90s)"
+    if wiki cloud-smoke --timeout 90 2>&1 | grep -q "remember+recall: OK"; then
+        log_pass "Cognee Cloud serve -> remember -> recall works"
+    else
+        log_fail "wiki cloud-smoke failed -- cloud tenant or SDK routing is not healthy"
+    fi
 else
-    log_fail "hello_cognee failed -- check LLM_* env vars in .env"
+    section "5. hello_cognee (~30-60s)"
+    if python scripts/hello_cognee.py 2>&1 | grep -q "GRAPH_COMPLETION"; then
+        log_pass "Cognee add -> cognify -> search works"
+    else
+        log_fail "hello_cognee failed -- check LLM_* env vars in .env"
+    fi
 fi
 
 section "6. Reset + seed (~60-120s)"

@@ -7,14 +7,16 @@ from typing import Any
 
 from json_repair import repair_json
 
-from .config import GEMINI_API_KEY
+from .config import GEMINI_API_KEY, GEMINI_NATIVE_MODEL
 from .logs import get_logger, event
 from .prompts import EXTRACT_CONCEPTS
 
 logger = get_logger(__name__)
 
 import os
-_MODEL_NAME = os.environ.get("GEMINI_TEXT_MODEL", "gemini-3-pro-preview")
+# Prefer explicit GEMINI_TEXT_MODEL override; fall back to GEMINI_NATIVE_MODEL
+# (derived from LLM_MODEL in config.py).
+_MODEL_NAME = os.environ.get("GEMINI_TEXT_MODEL") or GEMINI_NATIVE_MODEL
 _configured = False
 
 
