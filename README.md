@@ -9,7 +9,7 @@ itself remembers what was true before. The name comes from medieval
 manuscripts that were scraped and rewritten with the earlier text still
 faintly visible: every `SUPERSEDES` edge is a palimpsest trace.
 
-Built for the Cognee × Redis AI-Memory Hackathon. Stack: **Cognee 1.1.0 · RedisVL 0.18.2 · Redis Stack · Gemini 3 · Python 3.11**.
+Built for the Cognee × Redis AI-Memory Hackathon. Stack: **Cognee 1.1.0 · RedisVL 0.18.2 · Redis Stack · OpenAI · Python 3.11**.
 
 ## Demo
 
@@ -19,12 +19,14 @@ Built for the Cognee × Redis AI-Memory Hackathon. Stack: **Cognee 1.1.0 · Redi
 
 ## Run locally
 
-One command does everything:
+Run the readiness check, then prepare a clean stage state:
 
 ```bash
 ./run.sh setup     # venv + Redis bringup + .env scaffold (auto-detects mode)
-# edit .env: set GEMINI_API_KEY and REDIS_URL
-./run.sh all       # doctor → verify → seed → demo
+# edit .env: set LLM_API_KEY/EMBEDDING_API_KEY and REDIS_URL
+./run.sh all       # non-interactive readiness check; consumes the canned hero item
+./run.sh prep-demo # reset/seed clean state for presenting
+./run.sh demo      # interactive 3-minute stage flow
 ```
 
 ### Pick a Redis runtime
@@ -43,10 +45,11 @@ You need **Redis Stack** (Redis + RedisJSON modules). Pick one:
 | `doctor` | Diagnostic dump |
 | `verify` | 9-step live smoke (`scripts/verify_live.sh`) |
 | `seed` | `wiki reset && wiki seed && wiki load-baseline` |
+| `prep-demo` | reset + seed a clean state for the interactive stage demo |
 | `demo` | Interactive 3-min stage flow |
 | `rethink` | Cognee memify graph enrichment |
 | `test` | pytest |
-| `all` | full chain |
+| `all` | setup + doctor + non-interactive readiness check |
 
 Raw `wiki` CLI subcommands: `ask`, `dash`, `doctor`, `eval`, `graph`, `ingest`, `inject`, `inject-canned`, `lint`, `load-baseline`, `reset`, `rethink`, `seed`.
 

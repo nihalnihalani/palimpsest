@@ -1,8 +1,4 @@
-"""Direct Gemini call (the path our app uses for synth/contradiction-check)."""
-from palimpsest import config
-import google.generativeai as genai
+"""Direct app LLM call (OpenAI or Gemini, depending on .env)."""
+from palimpsest import gemini_io
 
-genai.configure(api_key=config.GEMINI_API_KEY)
-model = genai.GenerativeModel(config.GEMINI_NATIVE_MODEL)
-resp = model.generate_content("Say 'hello hackathon' and nothing else.")
-print(resp.text)
+print(gemini_io.generate_text("Say 'hello hackathon' and nothing else."))

@@ -18,6 +18,7 @@ logger = get_logger(__name__)
 logger.debug(f"redis_bus configured for REDIS_URL={REDIS_URL!r}")
 
 _r: redis.Redis | None = None
+SUPERSEDES_KEY = "wiki:supersedes"
 
 
 def client() -> redis.Redis:
@@ -145,6 +146,43 @@ def audit(row: dict) -> str:
                          maxlen=10_000, approximate=True)
 
 
+def record_supersedes(
+    *,
+    from_id: str,
+    to_id: str,
+    old_claim: str,
+    new_claim: str,
+    source: str,
+    reason: str,
+) -> dict:
+    row = {
+        "from": from_id,
+        "to": to_id,
+        "old_claim": old_claim,
+        "new_claim": new_claim,
+        "source": source,
+        "reason": reason,
+        "ts": time.time(),
+    }
+    client().lpush(SUPERSEDES_KEY, json.dumps(row))
+    client().ltrim(SUPERSEDES_KEY, 0, 999)
+    publish({"type": "supersedes", "source": source, "reason": reason})
+    event(logger, "redis.supersedes", source=source, reason=reason[:40])
+    return row
+
+
+def list_supersedes_records(limit: int = 100) -> list[dict]:
+    rows: list[dict] = []
+    for raw in client().lrange(SUPERSEDES_KEY, 0, limit - 1):
+        try:
+            value = json.loads(raw)
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if isinstance(value, dict):
+            rows.append(value)
+    return rows
+
+
 def publish(payload: dict) -> int:
     return client().publish(PUBSUB_CHANNEL, json.dumps(payload))
 
@@ -186,3 +224,4 @@ def reset_streams() -> None:
         c.delete(k)
     for k in c.scan_iter(f"{VERDICT_PREFIX}*"):
         c.delete(k)
+    c.delete(SUPERSEDES_KEY)

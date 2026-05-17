@@ -28,10 +28,17 @@ activate_venv() {
 }
 require_env_key() {
     if ! [ -f .env ]; then fail "missing .env (run: ./run.sh setup)"; exit 1; fi
-    if ! grep -q '^GEMINI_API_KEY=..*' .env; then
-        fail "GEMINI_API_KEY is empty in .env -- edit it and re-run"
+    local provider
+    provider=$(grep -E '^LLM_PROVIDER=' .env | head -1 | cut -d= -f2- || true)
+    provider=${provider:-gemini}
+    if [ "$provider" = "openai" ]; then
+        if grep -qE '^(LLM_API_KEY|OPENAI_API_KEY)=..*' .env; then return; fi
+        fail "OpenAI key is empty in .env -- set LLM_API_KEY or OPENAI_API_KEY"
         exit 1
     fi
+    if grep -qE '^(GEMINI_API_KEY|LLM_API_KEY)=..*' .env; then return; fi
+    fail "Gemini key is empty in .env -- set GEMINI_API_KEY or LLM_API_KEY"
+    exit 1
 }
 
 # --- subcommands ---
@@ -90,7 +97,7 @@ cmd_setup() {
     else
         info "copying .env.example -> .env"
         cp .env.example .env
-        warn "edit .env and set GEMINI_API_KEY before continuing"
+        warn "edit .env and set LLM_API_KEY/EMBEDDING_API_KEY before continuing"
     fi
 }
 
@@ -120,9 +127,43 @@ cmd_seed() {
     fi
 }
 
+cmd_prep_demo() {
+    activate_venv
+    require_env_key
+    step "prepare clean demo state"
+    info "This resets Redis/wiki/Cognee state and seeds the baseline items."
+    wiki reset
+    wiki seed
+    wiki load-baseline
+
+    local n_concepts
+    n_concepts=$(find wiki/concepts -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$n_concepts" -lt 3 ]; then
+        fail "only ${n_concepts} concept pages after seed -- demo state is not ready"
+        return 1
+    fi
+    ok "seeded ${n_concepts} concept pages"
+
+    step "snapshot demo filesystem"
+    mkdir -p snapshot
+    if tar czf snapshot/demo-baked.tar.gz wiki/ .cognee_system/ .data_storage/ 2>/dev/null; then
+        ok "wrote snapshot/demo-baked.tar.gz"
+    else
+        tar czf snapshot/demo-baked.tar.gz wiki/
+        ok "wrote snapshot/demo-baked.tar.gz (wiki only)"
+    fi
+    info "Demo state is ready. Start the stage flow with: ./run.sh demo"
+}
+
 cmd_demo() {
     activate_venv
     require_env_key
+    local n_concepts
+    n_concepts=$(find wiki/concepts -maxdepth 1 -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$n_concepts" -lt 3 ]; then
+        fail "demo state is empty -- run: ./run.sh prep-demo"
+        exit 1
+    fi
     step "running demo flow"
     bash demo/run_demo.sh
 }
@@ -193,9 +234,7 @@ cmd_all() {
     require_env_key
     cmd_doctor || { fail "doctor failed -- fix before continuing"; exit 1; }
     cmd_verify
-    cmd_vector_smoke
-    cmd_seed
-    cmd_demo
+    info "Readiness passed. Before the live stage run: ./run.sh prep-demo"
 }
 
 cmd_help() {
@@ -206,9 +245,10 @@ Usage: ./run.sh <subcommand>
 
   setup          Idempotent: venv + pip install + Redis bringup (auto: cloud/brew/docker) + .env scaffold
   doctor         Diagnostic dump (Redis health, Cognee graph stats, env, logs)
-  verify         Run scripts/verify_live.sh (9-step live smoke) + wiki vector-smoke
+  verify         Run scripts/verify_live.sh live smoke (destructive readiness check)
   seed           wiki reset && wiki seed && wiki load-baseline
-  demo           Run demo/run_demo.sh (3-min stage flow)
+  prep-demo      Reset + seed a clean state for the interactive stage demo
+  demo           Run demo/run_demo.sh (interactive 3-min stage flow)
   rethink        wiki rethink (cognee.memify graph enrichment)
   vector-smoke   wiki vector-smoke (probe cognee's resolved vector backend, write docs/evidence/)
   cloud-smoke    wiki cloud-smoke (minimal Cognee Cloud remember+recall gate)
@@ -216,12 +256,14 @@ Usage: ./run.sh <subcommand>
   improve        Run the full skill self-improvement loop demo (remember -> run -> record -> status)
   improve-apply  ./run.sh improve-apply <proposal_id>  (commit a previously-proposed SKILL.md rewrite)
   test           pytest -q tests/
-  all            setup -> doctor -> verify -> vector-smoke -> seed -> demo
+  all            setup -> doctor -> verify (non-interactive readiness check)
   help           This message
 
 Examples:
   ./run.sh setup                       # one-time
-  ./run.sh all                         # full pipeline
+  ./run.sh all                         # readiness check; consumes the canned hero item
+  ./run.sh prep-demo                   # reset/seed clean state before presenting
+  ./run.sh demo                        # interactive stage flow
   ./run.sh evidence baseline 5         # capture before-state eval
   ./run.sh seed                        # ingest canned items
   ./run.sh evidence improved 5         # capture after-state eval
@@ -235,6 +277,7 @@ case "${1:-help}" in
     doctor)        cmd_doctor ;;
     verify)        cmd_verify ;;
     seed)          cmd_seed ;;
+    prep-demo)     cmd_prep_demo ;;
     demo)          cmd_demo ;;
     rethink)       cmd_rethink ;;
     vector-smoke)  cmd_vector_smoke ;;

@@ -1,6 +1,7 @@
 """wiki doctor — single-command diagnostic dump for triaging a stuck demo."""
 from __future__ import annotations
 import os
+from urllib.parse import urlsplit, urlunsplit
 
 import click
 import redis
@@ -28,12 +29,29 @@ def _info(msg: str) -> None:
     click.echo(f"  - {msg}")
 
 
+def _redact_url(url: str) -> str:
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return "(invalid URL)"
+    if not parts.netloc:
+        return url
+    host = parts.hostname or ""
+    port = f":{parts.port}" if parts.port else ""
+    if parts.username or parts.password:
+        auth = f"{parts.username or 'user'}:<redacted>@"
+    else:
+        auth = ""
+    return urlunsplit((parts.scheme, f"{auth}{host}{port}", parts.path, "", ""))
+
+
 def run() -> int:
     """Returns count of failures."""
     failures = 0
 
     _hdr("Environment")
-    for var in ("GEMINI_API_KEY", "LLM_MODEL", "LLM_PROVIDER",
+    for var in ("GEMINI_API_KEY", "LLM_API_KEY", "OPENAI_API_KEY",
+                "LLM_MODEL", "LLM_PROVIDER", "EMBEDDING_API_KEY",
                 "EMBEDDING_PROVIDER", "VECTOR_DB_PROVIDER",
                 "GRAPH_DATABASE_PROVIDER", "ENABLE_BACKEND_ACCESS_CONTROL",
                 "LOG_LEVEL"):
@@ -49,7 +67,7 @@ def run() -> int:
         r = redis.Redis.from_url(REDIS_URL, decode_responses=True,
                                  socket_connect_timeout=2)
         pong = r.ping()
-        _ok(f"PING -> {pong} at {REDIS_URL}")
+        _ok(f"PING -> {pong} at {_redact_url(REDIS_URL)}")
     except Exception as e:
         _fail(f"Redis unreachable: {e}")
         failures += 1

@@ -1,5 +1,6 @@
 """Thin async wrapper over Cognee. All cognee calls live here so swaps stay local."""
 from __future__ import annotations
+import atexit
 import asyncio
 import os
 from typing import Any
@@ -198,17 +199,36 @@ async def top_concepts(item_text: str, k: int = 3) -> list[str]:
 async def write_supersedes_edge(old_claim: str, new_claim: str,
                                 source: str, reason: str) -> None:
     """The Cognee differentiator: the graph itself remembers what was true before."""
-    graph = await get_graph_engine()
+    from . import redis_bus
     import time
     old_id = f"claim:{abs(hash(old_claim))}"
     new_id = f"claim:{abs(hash(new_claim))}"
-    await graph.add_node(old_id, {"text": old_claim, "kind": "claim"})
-    await graph.add_node(new_id, {"text": new_claim, "kind": "claim"})
-    await graph.add_edge(
-        old_id, new_id,
-        relationship_name="SUPERSEDES",
-        properties={"source": source, "reason": reason, "ts": time.time()},
+
+    redis_bus.record_supersedes(
+        from_id=old_id,
+        to_id=new_id,
+        old_claim=old_claim,
+        new_claim=new_claim,
+        source=source,
+        reason=reason,
     )
+
+    if is_cloud_mode():
+        event(logger, "cognee.add_edge.SUPERSEDES.redis_only_cloud",
+              old=old_id, new=new_id, reason=reason[:40])
+        return
+
+    try:
+        graph = await get_graph_engine()
+        await graph.add_node(old_id, {"text": old_claim, "kind": "claim"})
+        await graph.add_node(new_id, {"text": new_claim, "kind": "claim"})
+        await graph.add_edge(
+            old_id, new_id,
+            relationship_name="SUPERSEDES",
+            properties={"source": source, "reason": reason, "ts": time.time()},
+        )
+    except Exception as e:  # noqa: BLE001
+        event(logger, "cognee.add_edge.SUPERSEDES.graph_error", err=str(e)[:120])
     event(logger, "cognee.add_edge.SUPERSEDES",
           old=old_id, new=new_id, reason=reason[:40])
 
@@ -219,8 +239,18 @@ async def list_supersedes() -> list[dict]:
     Cognee's get_graph_data edge tuple shape varies by version; handle both
     4-tuple (src, dst, rel, props) and 3-tuple (src, dst, props_with_rel).
     """
-    graph = await get_graph_engine()
-    _, edges = await graph.get_graph_data()
+    from . import redis_bus
+
+    if is_cloud_mode():
+        return redis_bus.list_supersedes_records()
+
+    try:
+        graph = await get_graph_engine()
+        _, edges = await graph.get_graph_data()
+    except Exception as e:  # noqa: BLE001
+        event(logger, "cognee.list_supersedes.graph_error", err=str(e)[:120])
+        edges = []
+
     out: list[dict] = []
     for edge in edges or []:
         if isinstance(edge, (list, tuple)):
@@ -235,6 +265,15 @@ async def list_supersedes() -> list[dict]:
             continue
         if rel == "SUPERSEDES":
             out.append({"from": src, "to": dst, **(props or {})})
+    seen = {
+        (row.get("from"), row.get("to"), row.get("source"), row.get("reason"))
+        for row in out
+    }
+    for row in redis_bus.list_supersedes_records():
+        key = (row.get("from"), row.get("to"), row.get("source"), row.get("reason"))
+        if key not in seen:
+            out.append(row)
+            seen.add(key)
     return out
 
 
@@ -340,3 +379,34 @@ def run(coro):
     cognee's cloud client / aiohttp session survives across multiple calls."""
     loop = _get_loop()
     return loop.run_until_complete(_with_cloud_init(coro))
+
+
+async def _disconnect_cloud() -> None:
+    global _cloud_initialized
+    if not is_cloud_mode() or not _cloud_initialized or not COGNEE_AVAILABLE:
+        return
+    try:
+        if hasattr(cognee, "disconnect"):
+            await cognee.disconnect(clear_saved=False)
+    except TypeError:
+        await cognee.disconnect()
+    except Exception as e:  # noqa: BLE001
+        event(logger, "cognee.cloud.disconnect_error", err=str(e)[:120])
+    finally:
+        _cloud_initialized = False
+
+
+def shutdown() -> None:
+    global _LOOP
+    if _LOOP is None or _LOOP.is_closed():
+        return
+    try:
+        _LOOP.run_until_complete(asyncio.wait_for(_disconnect_cloud(), timeout=5))
+    except Exception as e:  # noqa: BLE001
+        event(logger, "cognee.cloud.shutdown_timeout", err=str(e)[:120])
+    finally:
+        _LOOP.close()
+        _LOOP = None
+
+
+atexit.register(shutdown)

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Palimpsest -- live verification harness.
-# Run this AFTER docker compose up -d and after setting GEMINI_API_KEY in .env.
+# Run this AFTER setting .env credentials.
 # Exits non-zero on any failure so you know exactly where the wheels come off.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -72,10 +72,14 @@ else
 fi
 
 section "2. .env loaded"
-if grep -q "^GEMINI_API_KEY=." .env 2>/dev/null; then
-    log_pass ".env has GEMINI_API_KEY"
+LLM_PROVIDER_HINT=$(grep -E '^LLM_PROVIDER=' .env 2>/dev/null | head -1 | cut -d= -f2- || true)
+LLM_PROVIDER_HINT=${LLM_PROVIDER_HINT:-gemini}
+if [ "$LLM_PROVIDER_HINT" = "openai" ] && grep -qE "^(LLM_API_KEY|OPENAI_API_KEY)=." .env 2>/dev/null; then
+    log_pass ".env has OpenAI LLM credentials"
+elif [ "$LLM_PROVIDER_HINT" = "gemini" ] && grep -qE "^(GEMINI_API_KEY|LLM_API_KEY)=." .env 2>/dev/null; then
+    log_pass ".env has Gemini LLM credentials"
 else
-    log_fail ".env missing or GEMINI_API_KEY empty -- fill it in"
+    log_fail ".env missing LLM credentials for LLM_PROVIDER=${LLM_PROVIDER_HINT}"
     exit 1
 fi
 
@@ -86,21 +90,23 @@ else
     log_fail "hello_redis failed"
 fi
 
-section "4. hello_gemini"
-GEMINI_OUT=$(python scripts/hello_gemini.py 2>&1 | tail -1)
-if echo "$GEMINI_OUT" | grep -qi "hello"; then
-    log_pass "Gemini 3 reachable: ${GEMINI_OUT}"
+section "4. hello_llm"
+LLM_OUT=$(python scripts/hello_gemini.py 2>&1 | tail -1)
+if echo "$LLM_OUT" | grep -qi "hello"; then
+    log_pass "${LLM_PROVIDER_HINT} LLM reachable: ${LLM_OUT}"
 else
-    log_fail "hello_gemini failed: ${GEMINI_OUT}"
+    log_fail "hello_llm failed: ${LLM_OUT}"
 fi
 
 COGNEE_CLOUD_URL=$(grep -E '^COGNEE_SERVICE_URL=.' .env 2>/dev/null | head -1 | cut -d= -f2- || true)
 if [ -n "$COGNEE_CLOUD_URL" ]; then
     section "5. Cognee Cloud smoke (~30-90s)"
-    if wiki cloud-smoke --timeout 90 2>&1 | grep -q "remember+recall: OK"; then
+    CLOUD_OUT=$(wiki cloud-smoke --timeout 120 2>&1)
+    if echo "$CLOUD_OUT" | grep -q "remember+recall: OK"; then
         log_pass "Cognee Cloud serve -> remember -> recall works"
     else
         log_fail "wiki cloud-smoke failed -- cloud tenant or SDK routing is not healthy"
+        echo "$CLOUD_OUT" | tail -20
     fi
 else
     section "5. hello_cognee (~30-60s)"
@@ -148,8 +154,8 @@ else
 fi
 
 section "9. Lint report"
-LINT_OUT=$(wiki lint 2>&1 | head -3)
-echo "$LINT_OUT"
+LINT_OUT=$(wiki lint 2>&1)
+echo "$LINT_OUT" | head -12
 if echo "$LINT_OUT" | grep -q "wrote"; then
     log_pass "Lint report written"
 else
@@ -157,7 +163,8 @@ else
 fi
 
 section "10. Vector-smoke (cognee resolved provider)"
-VSMOKE_OUT=$(wiki vector-smoke 2>&1 | tail -10)
+VSMOKE_OUT=$(wiki vector-smoke 2>&1)
+echo "$VSMOKE_OUT" | tail -10
 if echo "$VSMOKE_OUT" | grep -qE "resolved vector provider: (lancedb|pgvector|chromadb|neptune_analytics|redis)"; then
     log_pass "Vector-smoke wrote docs/evidence/vector_provider.json"
 else

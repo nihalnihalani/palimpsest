@@ -1,11 +1,11 @@
 {
   "mode": "cloud",
   "service_url": "https://tenant-55831ce5-f32b-4843-9619-c1f8e543188e.aws.cognee.ai",
-  "dataset": "palimpsest-cloud-smoke-1778977727-42aea022",
+  "dataset": "palimpsest-cloud-smoke-1778980553-f72bc243",
   "remember_ok": true,
   "recall_ok": true,
   "token_found": true,
-  "answer_preview": "{'kind': 'graph_completion', 'search_type': 'GRAPH_COMPLETION', 'text': 'PALIMPSEST_CLOUD_SMOKE_A974907BA2', 'score': None, 'dataset_id': 'c9e1f4ac-002b-5be8-977c-ff249860f7a9', 'dataset_name': 'palimpsest-cloud-smoke-1778977727-42aea022', 'metadata': {}, 'raw': {'value': 'PALIMPSEST_CLOUD_SMOKE_A974907BA2'}, 'structured': None, 'source': 'graph'}",
+  "answer_preview": "{'kind': 'graph_completion', 'search_type': 'GRAPH_COMPLETION', 'text': 'PALIMPSEST_CLOUD_SMOKE_D29EEBFE2C', 'score': None, 'dataset_id': 'c9461800-08a3-53aa-8ed2-75645c0fbca0', 'dataset_name': 'palimpsest-cloud-smoke-1778980553-f72bc243', 'metadata': {}, 'raw': {'value': 'PALIMPSEST_CLOUD_SMOKE_D29EEBFE2C'}, 'structured': None, 'source': 'graph'}",
   "local_kuzu_holders": [],
-  "ts": 1778977736.754167
+  "ts": 1778980563.326484
 }

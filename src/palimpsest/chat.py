@@ -1,4 +1,4 @@
-"""Interactive chat REPL. Multi-turn over Gemini with slash commands."""
+"""Interactive chat REPL. Multi-turn over the configured LLM with slash commands."""
 from __future__ import annotations
 import time
 from typing import Optional
@@ -42,25 +42,28 @@ def _read_concept_snippets(limit: int = 8) -> dict[str, str]:
     return {s: (wiki_io.read_concept(s) or "")[:1200] for s in slugs}
 
 
-def _send_to_gemini(history: list[dict], user_msg: str) -> str:
-    """Send one turn to Gemini and return the text reply. We construct a
-    fresh chat each turn with full history rather than reusing a long-lived
-    chat object — simpler, equally correct, and gives us a clear hook for
-    injecting wiki snippets as recent context."""
-    import google.generativeai as genai
-    from .config import GEMINI_API_KEY, GEMINI_NATIVE_MODEL
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel(GEMINI_NATIVE_MODEL, system_instruction=SYSTEM_PRIMER)
-    chat = model.start_chat(history=history)
-    # Prepend current wiki snippets to the user message so Gemini stays grounded
+def _send_to_llm(history: list[dict], user_msg: str) -> str:
+    """Send one turn to the configured LLM and return the text reply."""
+    from . import gemini_io
+
     snippets = _read_concept_snippets()
     snippets_text = "\n\n".join(f"### [[{s}]]\n{t}" for s, t in snippets.items())
-    enriched = f"WIKI SNIPPETS (for grounding):\n{snippets_text}\n\nUSER:\n{user_msg}"
+    history_text = "\n".join(
+        f"{m.get('role', 'user').upper()}: "
+        f"{''.join(m.get('parts', [])) if isinstance(m.get('parts'), list) else m.get('content', '')}"
+        for m in history[-10:]
+    )
+    enriched = (
+        f"{SYSTEM_PRIMER}\n\n"
+        f"RECENT HISTORY:\n{history_text or '(none)'}\n\n"
+        f"WIKI SNIPPETS (for grounding):\n{snippets_text}\n\n"
+        f"USER:\n{user_msg}"
+    )
     t0 = time.time()
-    resp = chat.send_message(enriched)
-    event(logger, "chat.turn", chars=len(resp.text),
+    reply = gemini_io.generate_text(enriched)
+    event(logger, "chat.turn", chars=len(reply),
           ms=int((time.time() - t0) * 1000))
-    return resp.text.strip()
+    return reply.strip()
 
 
 def _shell_out(cmd: list[str], console: Console) -> None:
@@ -166,9 +169,9 @@ def start_chat(resume: Optional[str] = None) -> None:
         if not session.title or session.title == "(new chat)":
             session.title = user_msg[:60]
         try:
-            reply = _send_to_gemini(session.to_gemini_history()[:-1], user_msg)
+            reply = _send_to_llm(session.to_gemini_history()[:-1], user_msg)
         except Exception as e:
-            console.print(f"[red]gemini error:[/red] {e}")
+            console.print(f"[red]llm error:[/red] {e}")
             continue
         session.append("model", reply)
         session.save()

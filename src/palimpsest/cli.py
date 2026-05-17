@@ -113,8 +113,14 @@ def graph() -> None:
 @graph.command("supersedes")
 def graph_supersedes() -> None:
     """List all SUPERSEDES edges. The killer 2-hop hero is built on this."""
-    from . import cognee_io  # lazy: pulls in Cognee
-    rows = cognee_io.run(cognee_io.list_supersedes())
+    import os
+    from . import config  # noqa: F401 - loads .env
+    if (os.environ.get("COGNEE_SERVICE_URL") or "").strip():
+        from . import redis_bus
+        rows = redis_bus.list_supersedes_records()
+    else:
+        from . import cognee_io  # lazy: pulls in Cognee
+        rows = cognee_io.run(cognee_io.list_supersedes())
     if not rows:
         click.echo("(no SUPERSEDES edges yet)")
         return

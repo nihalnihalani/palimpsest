@@ -44,12 +44,38 @@ def _get_cache() -> Any:
     # Local imports so this module is import-safe without env vars.
     from redisvl.extensions.cache.llm import SemanticCache
 
-    from .config import REDIS_URL
-    from .gemini_vectorizer import GeminiTextVectorizer
+    from .config import (
+        EMBEDDING_API_KEY,
+        EMBEDDING_DIMENSIONS,
+        EMBEDDING_MODEL,
+        EMBEDDING_PROVIDER,
+        LLM_ENDPOINT,
+        REDIS_URL,
+    )
 
-    _vectorizer = GeminiTextVectorizer()
+    provider = EMBEDDING_PROVIDER.lower()
+    if provider == "openai":
+        from .openai_vectorizer import OpenAIEmbeddingVectorizer
+
+        _vectorizer = OpenAIEmbeddingVectorizer(
+            model=EMBEDDING_MODEL,
+            api_key=EMBEDDING_API_KEY,
+            base_url=LLM_ENDPOINT,
+            dims=EMBEDDING_DIMENSIONS or 1536,
+        )
+    elif provider == "gemini":
+        from .gemini_vectorizer import GeminiTextVectorizer
+
+        model = EMBEDDING_MODEL
+        if model.startswith("gemini/"):
+            model = model.split("/", 1)[1]
+        _vectorizer = GeminiTextVectorizer(model=model or "text-embedding-004")
+    else:
+        raise RuntimeError(f"Unsupported EMBEDDING_PROVIDER={EMBEDDING_PROVIDER!r}")
+
+    cache_name = f"{CACHE_NAME}:{provider}:{_vectorizer.dims}"
     _cache = SemanticCache(
-        name=CACHE_NAME,
+        name=cache_name,
         distance_threshold=DISTANCE_THRESHOLD,
         ttl=TTL_SECONDS,
         vectorizer=_vectorizer,

@@ -90,11 +90,20 @@ def find_orphans() -> list[str]:
 
 
 def supersedes_summary() -> list[dict]:
+    import os
+    from . import config  # noqa: F401 - loads .env
+    if (os.environ.get("COGNEE_SERVICE_URL") or "").strip():
+        from . import redis_bus
+        return redis_bus.list_supersedes_records()
     from . import cognee_io  # lazy: pulls in Cognee
     return cognee_io.run(cognee_io.list_supersedes())
 
 
 def kg_stats() -> dict:
+    import os
+    from . import config  # noqa: F401 - loads .env
+    if (os.environ.get("COGNEE_SERVICE_URL") or "").strip():
+        return {"nodes": 0, "edges": 0}
     from . import cognee_io  # lazy: pulls in Cognee
     return cognee_io.run(cognee_io.graph_stats())
 

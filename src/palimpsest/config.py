@@ -34,24 +34,54 @@ for _env_key, _rel in (
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 
-# The hackathon brief issues `LLM_API_KEY` at kickoff — our direct
-# google.generativeai SDK calls need `GEMINI_API_KEY`. Accept either; if
-# only LLM_API_KEY is set (the brief's convention), use it.
+# App LLM config. Cognee reads these same env vars through its own settings
+# layer; these constants are for this repo's direct prompt calls.
+LLM_PROVIDER = (os.environ.get("LLM_PROVIDER") or "gemini").strip().lower()
+LLM_MODEL = (os.environ.get("LLM_MODEL") or "gemini/gemini-3-pro-preview").strip()
+LLM_API_KEY = (os.environ.get("LLM_API_KEY") or "").strip()
+LLM_ENDPOINT = (os.environ.get("LLM_ENDPOINT") or "").strip()
+LLM_INSTRUCTOR_MODE = (os.environ.get("LLM_INSTRUCTOR_MODE") or "").strip()
+
 GEMINI_API_KEY = (
     os.environ.get("GEMINI_API_KEY")
-    or os.environ.get("LLM_API_KEY")
+    or (LLM_API_KEY if LLM_PROVIDER == "gemini" else "")
     or ""
 ).strip()
-if not GEMINI_API_KEY:
+OPENAI_API_KEY = (
+    os.environ.get("OPENAI_API_KEY")
+    or (LLM_API_KEY if LLM_PROVIDER == "openai" else "")
+    or ""
+).strip()
+
+if LLM_PROVIDER == "gemini" and not GEMINI_API_KEY:
     raise RuntimeError(
-        "GEMINI_API_KEY (or LLM_API_KEY) is missing or empty in .env. "
-        "Set one of them to a valid Gemini key and re-run."
+        "GEMINI_API_KEY or LLM_API_KEY is missing for LLM_PROVIDER=gemini."
+    )
+if LLM_PROVIDER == "openai" and not OPENAI_API_KEY:
+    raise RuntimeError(
+        "OPENAI_API_KEY or LLM_API_KEY is missing for LLM_PROVIDER=openai."
     )
 
+# Embedding config for the RedisVL answer cache. Cognee also reads these env vars.
+EMBEDDING_PROVIDER = (
+    os.environ.get("EMBEDDING_PROVIDER") or LLM_PROVIDER
+).strip().lower()
+EMBEDDING_MODEL = (os.environ.get("EMBEDDING_MODEL") or "").strip()
+EMBEDDING_API_KEY = (
+    os.environ.get("EMBEDDING_API_KEY")
+    or (OPENAI_API_KEY if EMBEDDING_PROVIDER == "openai" else "")
+    or (GEMINI_API_KEY if EMBEDDING_PROVIDER == "gemini" else "")
+    or ""
+).strip()
+try:
+    EMBEDDING_DIMENSIONS = int(os.environ.get("EMBEDDING_DIMENSIONS") or "0")
+except ValueError:
+    EMBEDDING_DIMENSIONS = 0
+
 # LiteLLM (Cognee) vs google.generativeai use different model strings:
-#   LLM_MODEL=gemini/<api-model-id>  →  GEMINI_NATIVE_MODEL=<api-model-id>
+#   LLM_MODEL=gemini/<api-model-id> -> GEMINI_NATIVE_MODEL=<api-model-id>
 # Override GEMINI_NATIVE_MODEL if you use a LiteLLM alias that doesn't match the GenAI API id.
-_LLM_MODEL = (os.environ.get("LLM_MODEL") or "gemini/gemini-3-pro-preview").strip()
+_LLM_MODEL = LLM_MODEL
 GEMINI_NATIVE_MODEL = (os.environ.get("GEMINI_NATIVE_MODEL") or "").strip()
 if not GEMINI_NATIVE_MODEL:
     if _LLM_MODEL.startswith("gemini/"):
